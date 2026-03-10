@@ -7,7 +7,7 @@ module.exports.config = {
   credits: "Yasis",
   description: "Free AI chat + image description",
   commandCategory: "fun",
-  usages: "ai <question> or send a photo",
+  usages: "gemini <question> or send a photo",
   cooldowns: 3
 };
 
