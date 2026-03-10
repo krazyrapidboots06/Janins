@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "clear",
-  version: "1.0.0",
+  version: "1.1.0",
   hasPermssion: 0,
   credits: "Yasis",
   description: "Unblur / enhance an image",
@@ -43,25 +43,40 @@ module.exports.run = async function ({ api, event }) {
 
     const apiUrl = `https://yin-api.vercel.app/tools/unblur?url=${encodeURIComponent(imageUrl)}`;
 
-    const res = await axios.get(apiUrl, { responseType: "arraybuffer" });
+    const res = await axios.get(apiUrl);
 
-    const imgPath = path.join(__dirname, "cache", `clear_${Date.now()}.jpg`);
+    const data = res.data;
 
-    fs.writeFileSync(imgPath, Buffer.from(res.data, "binary"));
+    const clearImageUrl =
+      data.url ||
+      data.result ||
+      data.image ||
+      data;
+
+    if (!clearImageUrl) {
+      console.log("API RESPONSE:", data);
+      return api.sendMessage("❌ Failed to clear image.", threadID, messageID);
+    }
+
+    const img = await axios.get(clearImageUrl, { responseType: "arraybuffer" });
+
+    const filePath = path.join(__dirname, "cache", `clear_${Date.now()}.jpg`);
+
+    fs.writeFileSync(filePath, Buffer.from(img.data));
 
     api.sendMessage(
       {
         body: "✨ Here is the cleared image:",
-        attachment: fs.createReadStream(imgPath)
+        attachment: fs.createReadStream(filePath)
       },
       threadID,
-      () => fs.unlinkSync(imgPath),
+      () => fs.unlinkSync(filePath),
       messageID
     );
 
   } catch (err) {
 
-    console.error(err);
+    console.error("Clear Error:", err);
 
     api.sendMessage(
       "❌ Failed to clear the image.",
