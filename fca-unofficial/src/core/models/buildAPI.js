@@ -14,15 +14,14 @@ const utils = require('../../utils');
  * @returns {Array<object>} An array containing [ctx, defaultFuncs, {}].
  */
 async function buildAPI(html, jar, netData, globalOptions, fbLinkFunc, errorRetrievingMsg) {
-    const userID = (() => {
-        const cookies = jar.getCookiesSync(fbLinkFunc()); // Use passed fbLinkFunc
-        const primaryProfile = cookies.find((val) => val.cookieString().startsWith("c_user="));
-        const secondaryProfile = cookies.find((val) => val.cookieString().startsWith("i_user="));
-        if (!primaryProfile && !secondaryProfile) {
-            throw new Error(errorRetrievingMsg); // Use passed error message
-        }
-        return secondaryProfile?.cookieString().split("=")[1] || primaryProfile.cookieString().split("=")[1];
-    })();
+    let userID;
+    const cookies = jar.getCookiesSync(fbLinkFunc()); // Use passed fbLinkFunc
+    const primaryProfile = cookies.find((val) => val.cookieString().startsWith("c_user="));
+    const secondaryProfile = cookies.find((val) => val.cookieString().startsWith("i_user="));
+    if (!primaryProfile && !secondaryProfile) {
+        throw new Error(errorRetrievingMsg); // Use passed error message
+    }
+    userID = secondaryProfile?.cookieString().split("=")[1] || primaryProfile.cookieString().split("=")[1];
 
     const findConfig = (key) => {
         for (const scriptData of netData) {
@@ -57,7 +56,7 @@ async function buildAPI(html, jar, netData, globalOptions, fbLinkFunc, errorRetr
     const currentUserData = findConfig("CurrentUserInitialData");
     const userAppID = currentUserData ? currentUserData.APP_ID : undefined;
 
-    const primaryAppID = userAppID || mqttAppID;
+    let primaryAppID = userAppID || mqttAppID;
 
     let mqttEndpoint = mqttConfigData ? mqttConfigData.endpoint : undefined;
 

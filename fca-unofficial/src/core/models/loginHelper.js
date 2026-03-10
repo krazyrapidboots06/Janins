@@ -66,7 +66,7 @@ async function loginHelper(credentials, globalOptions, callback, setOptionsFunc,
                 if (resp.status !== 200) {
                     throw new Error("Wrong password / email");
                 }
-                const cstrs = resp.data["session_cookies"].map(c => `${c.name}=${c.value}`);
+                let cstrs = resp.data["session_cookies"].map(c => `${c.name}=${c.value}`);
                 cstrs.forEach(cstr => {
                   const domain = ".facebook.com";
                   const expires = new Date().getTime() + 1000 * 60 * 60 *24 * 365;

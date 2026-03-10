@@ -1,6 +1,6 @@
 "use strict";
 
-const { makeParsable } = require("./constants");
+const { makeParsable, log, warn } = require("./constants");
 
 /**
  * Formats a cookie array into a string for use in a cookie jar.

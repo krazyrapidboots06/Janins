@@ -148,7 +148,7 @@ module.exports = function(defaultFuncs, api, ctx) {
          */
         getStorePacks: async function() {
             utils.log("Starting to fetch all sticker packs from store...");
-            const allPacks = [];
+            let allPacks = [];
 
             const initialForm = {
                 fb_api_caller_class: 'RelayModern',
@@ -157,9 +157,7 @@ module.exports = function(defaultFuncs, api, ctx) {
                 doc_id: '29237828849196584'
             };
             let res = await makeRequest(initialForm);
-            const firstResult = formatPackList(res);
-            const { packs, store_id } = firstResult;
-            let page_info = firstResult.page_info;
+            let { packs, page_info, store_id } = formatPackList(res);
             allPacks.push(...packs);
             utils.log(`Fetched first page with ${packs.length} packs.`);
 
@@ -177,7 +175,7 @@ module.exports = function(defaultFuncs, api, ctx) {
                     doc_id: '9898634630218439'
                 };
                 res = await makeRequest(paginatedForm);
-                const paginatedResult = formatPackList(res);
+                let paginatedResult = formatPackList(res);
                 allPacks.push(...paginatedResult.packs);
                 page_info = paginatedResult.page_info;
                 utils.log(`Fetched ${paginatedResult.packs.length} more packs. Total now: ${allPacks.length}`);

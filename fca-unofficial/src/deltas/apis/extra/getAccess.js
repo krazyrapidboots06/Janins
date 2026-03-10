@@ -4,10 +4,10 @@ const utils = require('../../../utils');
 
 module.exports = function (defaultFuncs, api, ctx) {
   return function getAccess(authCode = '', callback) {
-    let cb;
-    const url = 'https://business.facebook.com/';
-    const Referer = url + 'security/twofactor/reauth/?twofac_next=' + encodeURIComponent(url + 'content_management') + '&type=avoid_bypass&app_id=0&save_device=0';
-    const rt = new Promise(function (resolve, reject) {
+    var cb;
+    var url = 'https://business.facebook.com/';
+    var Referer = url + 'security/twofactor/reauth/?twofac_next=' + encodeURIComponent(url + 'content_management') + '&type=avoid_bypass&app_id=0&save_device=0';
+    var rt = new Promise(function (resolve, reject) {
       cb = (error, token) => token ? resolve(token) : reject(error);
     });
 
@@ -16,7 +16,7 @@ module.exports = function (defaultFuncs, api, ctx) {
       authCode = '';
     }
     if (typeof callback == 'function') cb = callback;
-    if (ctx.access_token) 
+    if (!!ctx.access_token) 
       cb(null, ctx.access_token);
     else 
       utils
@@ -25,14 +25,14 @@ module.exports = function (defaultFuncs, api, ctx) {
           Origin: url
         })
         .then(function (res) {
-          const html = res.body;
-          const lsd = utils.getFrom(html, "[\"LSD\",[],{\"token\":\"", "\"}");
+          var html = res.body;
+          var lsd = utils.getFrom(html, "[\"LSD\",[],{\"token\":\"", "\"}");
           return lsd;
         })
         .then(function (lsd) {
           function submitCode(code) {
-            let pCb;
-            const rtPromise = new Promise(function (resolve) {
+            var pCb;
+            var rtPromise = new Promise(function (resolve) {
               pCb = (error, token) => resolve(cb(error, token));
             });
             if (typeof code != 'string')
@@ -52,7 +52,7 @@ module.exports = function (defaultFuncs, api, ctx) {
                   Origin: url
                 })
                 .then(function (res) {
-                  const { payload } = JSON.parse(res.body.split(';').pop() || '{}');
+                  var { payload } = JSON.parse(res.body.split(';').pop() || '{}');
                   if (payload && !payload.codeConfirmed)
                     throw {
                       error: 'submitCode',
@@ -66,8 +66,8 @@ module.exports = function (defaultFuncs, api, ctx) {
                   return utils
                     .get(url + 'content_management', ctx.jar, null, ctx.globalOptions, null, { noRef: true })
                     .then(function (res) {
-                      const html = res.body;
-                      const token = /"accessToken":"(\S+)","clientID":/g.exec(html);
+                      var html = res.body;
+                      var token = /"accessToken":"(\S+)","clientID":/g.exec(html);
 
                       return [html, token];
                     });

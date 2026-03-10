@@ -199,7 +199,7 @@ module.exports = function (defaultFuncs, api, ctx) {
         throw new Error("getThreadList: there was no successful_results");
       }
       
-      const nodes = resData[0].o0.data.viewer.message_threads.nodes;
+      let nodes = resData[0].o0.data.viewer.message_threads.nodes;
       if (timestamp) {
         nodes.shift();
       }

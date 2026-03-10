@@ -1,6 +1,6 @@
 "use strict";
 
-// const utils = require('../../../utils');
+const utils = require('../../../utils');
 const { URL } = require('url');
 
 /**
@@ -141,13 +141,17 @@ module.exports = function (defaultFuncs, api, ctx) {
         doc_id: "24226878183562473"
     };
 
-    const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
-    if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
+    try {
+        const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
+        if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
 
-    const storyNode = res.data?.data?.story_create?.viewer?.actor?.story_bucket?.nodes[0]?.first_story_to_show;
-    if (!storyNode || !storyNode.id) throw new Error("Could not find the storyCardID in the response.");
+        const storyNode = res.data?.data?.story_create?.viewer?.actor?.story_bucket?.nodes[0]?.first_story_to_show;
+        if (!storyNode || !storyNode.id) throw new Error("Could not find the storyCardID in the response.");
 
-    return { success: true, storyID: storyNode.id };
+        return { success: true, storyID: storyNode.id };
+    } catch (error) {
+        throw error;
+    }
   }
 
   return {

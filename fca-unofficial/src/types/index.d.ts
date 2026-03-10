@@ -2,7 +2,7 @@
 import { ReadStream } from "fs";
 import { EventEmitter } from "events";
 
-declare module "biar-fca" {
+declare module "ws3-fca" {
     export type UserID = string;
     export type ThreadID = string;
     export type MessageID = string;

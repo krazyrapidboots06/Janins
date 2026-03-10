@@ -318,15 +318,15 @@ function _formatAttachment(attachment1, attachment2) {
                                                                 spriteURI2x: blob.sprite_image_2x
                                                     };
         case "MessageLocation":
-                                                                const urlAttach = blob.story_attachment.url;
-                                                                const mediaAttach = blob.story_attachment.media;
+                                                                var urlAttach = blob.story_attachment.url;
+                                                                var mediaAttach = blob.story_attachment.media;
 
-                                                                const u = querystring.parse(url.parse(urlAttach).query).u;
-                                                                const where1 = querystring.parse(url.parse(u).query).where1;
-                                                                const address = where1.split(", ");
+                                                                var u = querystring.parse(url.parse(urlAttach).query).u;
+                                                                var where1 = querystring.parse(url.parse(u).query).where1;
+                                                                var address = where1.split(", ");
 
-                                                                let latitude;
-                                                                let longitude;
+                                                                var latitude;
+                                                                var longitude;
 
                                                                 try {
                                                                     latitude = Number.parseFloat(address[0]);
@@ -334,9 +334,9 @@ function _formatAttachment(attachment1, attachment2) {
                                                                 } catch (err) {
                                                                     /* empty */
                                                                 }
-                                                                let imageUrl;
-                                                                let width;
-                                                                let height;
+                                                                var imageUrl;
+                                                                var width;
+                                                                var height;
                                                                 if (mediaAttach && mediaAttach.image) {
                                                                     imageUrl = mediaAttach.image.uri;
                                                                     width = mediaAttach.image.width;
@@ -438,7 +438,7 @@ function _formatAttachment(attachment1, attachment2) {
                                                             }
 
                                                             /**
- * file: biar-fca/exocore/datas/formatters.js
+ * file: ws3-fca/exocore/datas/formatters.js
  * Hanapin ang function na ito at palitan ng version na ito.
  */
 function formatDeltaMessage(m) {
@@ -731,7 +731,7 @@ function formatDeltaMessage(m) {
                                                 return "[" + maybeMultipleObjects.join("},{") + "]";
                                             }
 
-                                            function _arrToForm(form) {
+                                            function arrToForm(form) {
                                                 return arrayToObject(
                                                     form,
                                                     function(v) {
@@ -750,16 +750,16 @@ function formatDeltaMessage(m) {
                                                 }, {});
                                             }
 
-                                            function _getSignatureID() {
+                                            function getSignatureID() {
                                                 return Math.floor(Math.random() * 2147483648).toString(16);
                                             }
 
-                                            function _generateTimestampRelative() {
+                                            function generateTimestampRelative() {
                                                 const d = new Date();
                                                 return d.getHours() + ":" + padZeros(d.getMinutes());
                                             }
 
-                                            function _makeDefaults(html, userID, ctx) {
+                                            function makeDefaults(html, userID, ctx) {
                                                 let reqCounter = 1;
                                                 const revision = getFrom(html, 'revision":', ",");
                                                 function mergeWithDefaults(obj) {
@@ -777,7 +777,7 @@ function formatDeltaMessage(m) {
 
                                                 if (!obj) return newObj;
 
-                                                for (const prop in obj) {
+                                                for (var prop in obj) {
                                                     if (obj.hasOwnProperty(prop)) {
                                                         if (!newObj[prop])
                                                             newObj[prop] = obj[prop];
@@ -794,9 +794,9 @@ function formatDeltaMessage(m) {
                                             };
                                         }
 
-                                        function _parseAndCheckLogin(ctx, http, retryCount) {
-                                            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-                                            const _try = (tryData) => new Promise(function(resolve, reject) {
+                                        function parseAndCheckLogin(ctx, http, retryCount) {
+                                            var delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                                            var _try = (tryData) => new Promise(function(resolve, reject) {
                                                 try {
                                                     resolve(tryData());
                                                 } catch (error) {
@@ -895,7 +895,7 @@ function formatDeltaMessage(m) {
                                 };
                         }
 
-                        function _saveCookies(jar) {
+                        function saveCookies(jar) {
                             return function(res) {
                                 const cookies = res.headers["set-cookie"] || [];
                                 cookies.forEach(function(c) {

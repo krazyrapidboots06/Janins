@@ -9,7 +9,7 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
     if (ctx.globalOptions.pageID && ctx.globalOptions.pageID != v.queue) return;
     (function resolveAttachmentUrl(i) {
       if (v.delta.attachments && (i == v.delta.attachments.length)) {
-        let fmtMsg;
+        var fmtMsg;
         try {
           fmtMsg = utils.formatDeltaMessage(v);
         } catch (err) {
@@ -20,19 +20,9 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
             type: "parse_error"
           });
         }
-        
         if (fmtMsg) {
-            // Cache thread type information for sendMessage
-            if (!ctx.threadTypeCache) {
-              ctx.threadTypeCache = {};
-            }
-            ctx.threadTypeCache[fmtMsg.threadID] = fmtMsg.isGroup || false;
             
-            if (ctx.globalOptions.autoMarkDelivery) {
-              api.markAsDelivered(fmtMsg.threadID, fmtMsg.messageID).catch(err => {
-                utils.warn("markAsDelivered", `Failed for thread ${fmtMsg.threadID}: ${err.message || err}`);
-              });
-            }
+            if (ctx.globalOptions.autoMarkDelivery) api.markAsDelivered(fmtMsg.threadID, fmtMsg.messageID);
         }
 
         if (!ctx.globalOptions.selfListen && fmtMsg.senderID === ctx.userID) {
@@ -55,10 +45,10 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
   }
 
   if (v.delta.class == "ClientPayload") {
-    const clientPayload = utils.decodeClientPayload(v.delta.payload);
+    var clientPayload = utils.decodeClientPayload(v.delta.payload);
     if (clientPayload && clientPayload.deltas) {
-      for (const i in clientPayload.deltas) {
-        const delta = clientPayload.deltas[i];
+      for (var i in clientPayload.deltas) {
+        var delta = clientPayload.deltas[i];
        // console.log(delta);
         if (delta.deltaMessageReaction && !!ctx.globalOptions.listenEvents) {
             globalCallback(null, {
@@ -79,20 +69,20 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
               timestamp: delta.deltaRecallMessageData.timestamp
             });
         } else if (delta.deltaMessageReply) {
-          const mdata = delta.deltaMessageReply.message?.data?.prng ? JSON.parse(delta.deltaMessageReply.message.data.prng) : [];
-          const mentions = {};
+          var mdata = delta.deltaMessageReply.message?.data?.prng ? JSON.parse(delta.deltaMessageReply.message.data.prng) : [];
+          var mentions = {};
           if (mdata) {
             mdata.forEach(m => mentions[m.i] = (delta.deltaMessageReply.message.body || "").substring(m.o, m.o + m.l));
           }
           
-          const callbackToReturn = {
+          var callbackToReturn = {
             type: "message_reply",
             threadID: (delta.deltaMessageReply.message.messageMetadata.threadKey.threadFbId || delta.deltaMessageReply.message.messageMetadata.threadKey.otherUserFbId).toString(),
             messageID: delta.deltaMessageReply.message.messageMetadata.messageId,
             senderID: delta.deltaMessageReply.message.messageMetadata.actorFbId.toString(),
             attachments: delta.deltaMessageReply.message.attachments.map(att => {
               try {
-                const mercury = JSON.parse(att.mercuryJSON);
+                var mercury = JSON.parse(att.mercuryJSON);
                 Object.assign(att, mercury);
                 return utils._formatAttachment(att);
               } catch (ex) {
@@ -105,16 +95,10 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
             timestamp: delta.deltaMessageReply.message.messageMetadata.timestamp,
             participantIDs: (delta.deltaMessageReply.message.participants || []).map(e => e.toString())
           };
-          
-          // Cache thread type information for sendMessage
-          if (!ctx.threadTypeCache) {
-            ctx.threadTypeCache = {};
-          }
-          ctx.threadTypeCache[callbackToReturn.threadID] = callbackToReturn.isGroup || false;
 
           if (delta.deltaMessageReply.repliedToMessage) {
-            const rmentions = {};
-            const rmdata = delta.deltaMessageReply.repliedToMessage?.data?.prng ? JSON.parse(delta.deltaMessageReply.repliedToMessage.data.prng) : [];
+            var rmentions = {};
+            var rmdata = delta.deltaMessageReply.repliedToMessage?.data?.prng ? JSON.parse(delta.deltaMessageReply.repliedToMessage.data.prng) : [];
             if (rmdata) {
                 rmdata.forEach(m => rmentions[m.i] = (delta.deltaMessageReply.repliedToMessage.body || "").substring(m.o, m.o + m.l));
             }
@@ -125,7 +109,7 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
               senderID: delta.deltaMessageReply.repliedToMessage.messageMetadata.actorFbId.toString(),
               attachments: delta.deltaMessageReply.repliedToMessage.attachments.map(att => {
                  try {
-                    const mercury = JSON.parse(att.mercuryJSON);
+                    var mercury = JSON.parse(att.mercuryJSON);
                     Object.assign(att, mercury);
                     return utils._formatAttachment(att);
                   } catch (ex) {
@@ -139,11 +123,7 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
               participantIDs: (delta.deltaMessageReply.repliedToMessage.participants || []).map(e => e.toString())
             };
           }
-          if (ctx.globalOptions.autoMarkDelivery) {
-            api.markAsDelivered(callbackToReturn.threadID, callbackToReturn.messageID).catch(err => {
-              utils.warn("markAsDelivered", `Failed for thread ${callbackToReturn.threadID}: ${err.message || err}`);
-            });
-          }
+          if (ctx.globalOptions.autoMarkDelivery) api.markAsDelivered(callbackToReturn.threadID, callbackToReturn.messageID);
           if (!ctx.globalOptions.selfListen && callbackToReturn.senderID === ctx.userID) return;
           return globalCallback(null, callbackToReturn);
         }
@@ -155,7 +135,7 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
   if (v.delta.class !== "NewMessage" && !ctx.globalOptions.listenEvents) return;
   switch (v.delta.class) {
     case "ReadReceipt":
-      let fmtMsg;
+      var fmtMsg;
       try {
         fmtMsg = utils.formatDeltaReadReceipt(v.delta);
       } catch (err) {
@@ -166,7 +146,7 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, v) {
     case "ThreadName":
     case "ParticipantsAddedToGroupThread":
     case "ParticipantLeftGroupThread":
-      let fmtEvent;
+      var fmtEvent;
       try {
         fmtEvent = utils.formatDeltaEvent(v.delta);
       } catch (err) {

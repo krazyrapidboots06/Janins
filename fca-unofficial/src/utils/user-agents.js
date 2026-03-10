@@ -36,7 +36,7 @@ function randomUserAgent() {
         `"Google Chrome";v="${majorVersion}"`
     ];
     const secChUa = brands.join(', ');
-    const secChUaFullVersionList = brands.map((b) => b.replace(/"$/, `.0.0.0"`)).join(', ');
+    const secChUaFullVersionList = brands.map((b, i) => b.replace(/"$/, `.0.0.0"`)).join(', ');
 
     return {
         userAgent,

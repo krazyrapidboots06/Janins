@@ -145,7 +145,7 @@ async function get(url, reqJar, qs, options, ctx, customHeader) {
 async function post(url, reqJar, form, options, ctx, customHeader) {
     const headers = getHeaders(url, options, ctx, customHeader);
     let data = form;
-    const contentType = headers['Content-Type'] || 'application/x-www-form-urlencoded';
+    let contentType = headers['Content-Type'] || 'application/x-www-form-urlencoded';
 
     // Automatically handle JSON if the content type suggests it
     if (contentType.includes('json')) {

@@ -56,13 +56,13 @@ module.exports = function (defaultFuncs, api, ctx) {
         throw resData;
       }
 
-      callback();
+      return callback();
     } catch (err) {
       utils.error("markAsSeen", err);
       if (utils.getType(err) == "Object" && err.error === "Not logged in.") {
         ctx.loggedIn = false;
       }
-      callback(err);
+      return callback(err);
     }
 
     return returnPromise;

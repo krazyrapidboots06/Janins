@@ -1,6 +1,6 @@
 "use strict";
 
-// const utils = require('../../../utils');
+const utils = require('../../../utils');
 
 /**
  * @ChoruOfficial
@@ -58,21 +58,25 @@ module.exports = function (defaultFuncs, api, ctx) {
      * @throws {Error} If the API request fails or returns an error.
      */
     requests: async function() {
-      const form = {
-        av: ctx.userID,
-        __user: ctx.userID,
-        __a: "1",
-        fb_dtsg: ctx.fb_dtsg,
-        jazoest: ctx.jazoest,
-        lsd: ctx.lsd,
-        fb_api_caller_class: "RelayModern",
-        fb_api_req_friendly_name: "FriendingCometRootContentQuery",
-        variables: JSON.stringify({ scale: 3 }),
-        doc_id: "9103543533085580"
-      };
-      const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
-      if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
-      return formatFriends(res.data, 'requests');
+      try {
+        const form = {
+          av: ctx.userID,
+          __user: ctx.userID,
+          __a: "1",
+          fb_dtsg: ctx.fb_dtsg,
+          jazoest: ctx.jazoest,
+          lsd: ctx.lsd,
+          fb_api_caller_class: "RelayModern",
+          fb_api_req_friendly_name: "FriendingCometRootContentQuery",
+          variables: JSON.stringify({ scale: 3 }),
+          doc_id: "9103543533085580"
+        };
+        const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
+        if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
+        return formatFriends(res.data, 'requests');
+      } catch (err) {
+        throw err;
+      }
     },
 
     /**
@@ -132,29 +136,33 @@ module.exports = function (defaultFuncs, api, ctx) {
      * @throws {Error} If the API request fails.
      */
     list: async function(userID = ctx.userID) {
-        const sectionToken = Buffer.from(`app_section:${userID}:2356318349`).toString('base64');
-        const variables = {
-            collectionToken: null,
-            scale: 2,
-            sectionToken: sectionToken,
-            useDefaultActor: false,
-            userID: userID
-        };
-        const form = {
-            av: ctx.userID,
-            __user: ctx.userID,
-            __a: "1",
-            fb_dtsg: ctx.fb_dtsg,
-            jazoest: ctx.jazoest,
-            lsd: ctx.lsd,
-            fb_api_caller_class: "RelayModern",
-            fb_api_req_friendly_name: "ProfileCometTopAppSectionQuery",
-            variables: JSON.stringify(variables),
-            doc_id: "24492266383698794"
-        };
-        const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
-        if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
-        return formatFriends(res.data, 'list');
+        try {
+            const sectionToken = Buffer.from(`app_section:${userID}:2356318349`).toString('base64');
+            const variables = {
+                collectionToken: null,
+                scale: 2,
+                sectionToken: sectionToken,
+                useDefaultActor: false,
+                userID: userID
+            };
+            const form = {
+                av: ctx.userID,
+                __user: ctx.userID,
+                __a: "1",
+                fb_dtsg: ctx.fb_dtsg,
+                jazoest: ctx.jazoest,
+                lsd: ctx.lsd,
+                fb_api_caller_class: "RelayModern",
+                fb_api_req_friendly_name: "ProfileCometTopAppSectionQuery",
+                variables: JSON.stringify(variables),
+                doc_id: "24492266383698794"
+            };
+            const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
+            if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
+            return formatFriends(res.data, 'list');
+        } catch(err) {
+            throw err;
+        }
     },
 
     /**
@@ -170,21 +178,25 @@ module.exports = function (defaultFuncs, api, ctx) {
          * @throws {Error} If the API request fails.
          */
         list: async function(limit = 30) {
-          const form = {
-              av: ctx.userID,
-              __user: ctx.userID,
-              __a: "1",
-              fb_dtsg: ctx.fb_dtsg,
-              jazoest: ctx.jazoest,
-              lsd: ctx.lsd,
-              fb_api_caller_class: "RelayModern",
-              fb_api_req_friendly_name: "FriendingCometPYMKPanelPaginationQuery",
-              variables: JSON.stringify({ count: limit, cursor: null, scale: 3 }),
-              doc_id: "9917809191634193"
-          };
-          const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
-          if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
-          return formatFriends(res.data, 'suggestions');
+          try {
+              const form = {
+                  av: ctx.userID,
+                  __user: ctx.userID,
+                  __a: "1",
+                  fb_dtsg: ctx.fb_dtsg,
+                  jazoest: ctx.jazoest,
+                  lsd: ctx.lsd,
+                  fb_api_caller_class: "RelayModern",
+                  fb_api_req_friendly_name: "FriendingCometPYMKPanelPaginationQuery",
+                  variables: JSON.stringify({ count: limit, cursor: null, scale: 3 }),
+                  doc_id: "9917809191634193"
+              };
+              const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
+              if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
+              return formatFriends(res.data, 'suggestions');
+          } catch(err) {
+              throw err;
+          }
         },
         /**
          * Sends a friend request to a user.
@@ -194,31 +206,35 @@ module.exports = function (defaultFuncs, api, ctx) {
          * @throws {Error} If the userID is missing or the API request fails.
          */
         request: async function(userID) {
-            if (!userID) throw new Error("userID is required.");
-            const variables = {
-                input: {
-                    friend_requestee_ids: [userID],
-                    friending_channel: "FRIENDS_HOME_MAIN",
-                    actor_id: ctx.userID,
-                    client_mutation_id: Math.floor(Math.random() * 10 + 1).toString()
-                },
-                scale: 3
-            };
-            const form = {
-                av: ctx.userID,
-                __user: ctx.userID,
-                __a: "1",
-                fb_dtsg: ctx.fb_dtsg,
-                jazoest: ctx.jazoest,
-                lsd: ctx.lsd,
-                fb_api_caller_class: "RelayModern",
-                fb_api_req_friendly_name: "FriendingCometFriendRequestSendMutation",
-                variables: JSON.stringify(variables),
-                doc_id: "23982103144788355"
-            };
-            const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
-            if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
-            return res.data.data;
+            try {
+                if (!userID) throw new Error("userID is required.");
+                const variables = {
+                    input: {
+                        friend_requestee_ids: [userID],
+                        friending_channel: "FRIENDS_HOME_MAIN",
+                        actor_id: ctx.userID,
+                        client_mutation_id: Math.floor(Math.random() * 10 + 1).toString()
+                    },
+                    scale: 3
+                };
+                const form = {
+                    av: ctx.userID,
+                    __user: ctx.userID,
+                    __a: "1",
+                    fb_dtsg: ctx.fb_dtsg,
+                    jazoest: ctx.jazoest,
+                    lsd: ctx.lsd,
+                    fb_api_caller_class: "RelayModern",
+                    fb_api_req_friendly_name: "FriendingCometFriendRequestSendMutation",
+                    variables: JSON.stringify(variables),
+                    doc_id: "23982103144788355"
+                };
+                const res = await defaultFuncs.post("https://www.facebook.com/api/graphql/", ctx.jar, form, {});
+                if (res.data.errors) throw new Error(JSON.stringify(res.data.errors));
+                return res.data.data;
+            } catch(err) {
+                throw err;
+            }
         }
     }
   };

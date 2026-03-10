@@ -7,7 +7,6 @@ const clients = require("./clients");
 const constants = require("./constants");
 const formatters = require("./formatters"); 
 const userAgents = require("./user-agents");
-const errors = require("./errors");
 const cheerio = require("cheerio");
 const util = require("util");
 
@@ -145,7 +144,6 @@ module.exports = {
   ...constants,
   ...formatters,
   ...userAgents,
-  ...errors,
   json,
   makeDefaults,
   promisify: (func) => util.promisify(func),

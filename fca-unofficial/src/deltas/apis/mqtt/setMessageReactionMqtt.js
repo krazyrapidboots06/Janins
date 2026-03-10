@@ -3,7 +3,7 @@
 
 const utils = require('../../../utils');
 
-function _isCallable(func) {
+function isCallable(func) {
   try {
     Reflect.apply(func, null, []);
     return true;
