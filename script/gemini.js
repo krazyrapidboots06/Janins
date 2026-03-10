@@ -69,7 +69,7 @@ module.exports.run = async function ({ api, event, args }) {
     memory[threadID].push(`AI: ${reply}`);
 
     api.sendMessage(
-      `🤖 AI\n━━━━━━━━━━━━━━\n${reply}`,
+      `🤖 GEMINI\n━━━━━━━━━━━━━━\n${reply}`,
       threadID,
       messageID
     );
