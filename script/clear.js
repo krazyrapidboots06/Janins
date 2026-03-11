@@ -1,15 +1,15 @@
 const axios = require("axios");
-const fs = require("fs");
+const fs = require("fs-extra");
 const path = require("path");
 
 module.exports.config = {
   name: "clear",
-  version: "1.1.0",
+  version: "1.2.0",
   hasPermssion: 0,
   credits: "Yasis",
   description: "Unblur / enhance an image",
   commandCategory: "tools",
-  usages: "reply clear to an image",
+  usages: "reply to an image",
   cooldowns: 3
 };
 
@@ -25,11 +25,11 @@ module.exports.run = async function ({ api, event }) {
     );
   }
 
-  const attachment = messageReply.attachments.find(a => a.type === "photo");
+  const attachment = messageReply.attachments[0];
 
-  if (!attachment) {
+  if (attachment.type !== "photo") {
     return api.sendMessage(
-      "❌ The replied message is not an image.",
+      "❌ Please reply to a valid image.",
       threadID,
       messageID
     );
@@ -39,30 +39,17 @@ module.exports.run = async function ({ api, event }) {
 
     api.sendMessage("🧹 Clearing the image... please wait.", threadID, messageID);
 
-    const imageUrl = attachment.url;
+    const imgUrl = attachment.url;
 
-    const apiUrl = `https://yin-api.vercel.app/tools/unblur?url=${encodeURIComponent(imageUrl)}`;
+    const apiUrl = `https://yin-api.vercel.app/tools/unblur?url=${encodeURIComponent(imgUrl)}`;
 
-    const res = await axios.get(apiUrl);
-
-    const data = res.data;
-
-    const clearImageUrl =
-      data.url ||
-      data.result ||
-      data.image ||
-      data;
-
-    if (!clearImageUrl) {
-      console.log("API RESPONSE:", data);
-      return api.sendMessage("❌ Failed to clear image.", threadID, messageID);
-    }
-
-    const img = await axios.get(clearImageUrl, { responseType: "arraybuffer" });
+    const img = await axios.get(apiUrl, {
+      responseType: "arraybuffer"
+    });
 
     const filePath = path.join(__dirname, "cache", `clear_${Date.now()}.jpg`);
 
-    fs.writeFileSync(filePath, Buffer.from(img.data));
+    fs.writeFileSync(filePath, img.data);
 
     api.sendMessage(
       {
@@ -78,12 +65,11 @@ module.exports.run = async function ({ api, event }) {
 
     console.error("Clear Error:", err);
 
-    api.sendMessage(
+    return api.sendMessage(
       "❌ Failed to clear the image.",
       threadID,
       messageID
     );
-
   }
 
 };
