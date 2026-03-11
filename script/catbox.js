@@ -2,7 +2,7 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "catbox",
-  version: "1.1.0",
+  version: "1.2.0",
   hasPermssion: 0,
   credits: "Yasis",
   description: "Upload image to Catbox",
@@ -17,20 +17,19 @@ module.exports.run = async function ({ api, event, args }) {
 
   let imageUrl;
 
-  // reply image
+  // reply to image
   if (messageReply && messageReply.attachments && messageReply.attachments.length > 0) {
-    const attachment = messageReply.attachments.find(a => a.type === "photo");
-    if (attachment) imageUrl = attachment.url;
+    imageUrl = messageReply.attachments[0].url;
   }
 
-  // manual url
+  // manual URL
   if (!imageUrl && args[0]) {
     imageUrl = args[0];
   }
 
   if (!imageUrl) {
     return api.sendMessage(
-      "📌 Reply to an image or provide an image URL.",
+      "📌 Please reply to an image or provide an image URL.",
       threadID,
       messageID
     );
@@ -40,40 +39,38 @@ module.exports.run = async function ({ api, event, args }) {
 
     api.sendMessage("⬆️ Uploading image to Catbox...", threadID, messageID);
 
-    const apiUrl = `https://yin-api.vercel.app/tools/catbox?image=${encodeURIComponent(imageUrl)}`;
+    const api = `https://yin-api.vercel.app/tools/catbox?image=${encodeURIComponent(imageUrl)}`;
 
-    const res = await axios.get(apiUrl);
+    const res = await axios.get(api);
 
     const data = res.data;
 
-    // detect response format
-    const catboxUrl =
-      data.url ||
-      data.result ||
-      data.link ||
-      data;
+    // detect response
+    let url;
 
-    if (!catboxUrl) {
-      console.log("API RESPONSE:", data);
+    if (typeof data === "string") url = data;
+    else url = data.url || data.result || data.link;
+
+    if (!url) {
+      console.log("Catbox API Response:", data);
       return api.sendMessage("❌ Upload failed.", threadID, messageID);
     }
 
     return api.sendMessage(
-      `📦 Image Uploaded to Catbox\n\n🔗 ${catboxUrl}`,
+      `📦 Image Uploaded to Catbox\n\n🔗 ${url}`,
       threadID,
       messageID
     );
 
   } catch (err) {
 
-    console.error("Catbox Error:", err.message);
+    console.log("Catbox Error:", err.message);
 
     return api.sendMessage(
       "❌ Error uploading image.",
       threadID,
       messageID
     );
-
   }
 
 };
