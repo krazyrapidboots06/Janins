@@ -4,24 +4,23 @@ const path = require("path");
 
 module.exports.config = {
   name: "spotify",
-  version: "1.0.0",
+  version: "2.0.0",
   hasPermssion: 0,
   credits: "Yasis",
-  description: "Play songs with cover",
+  description: "Play music with cover",
   commandCategory: "music",
-  usages: "spotify <song title>",
+  usages: "spotify <song name>",
   cooldowns: 5
 };
 
 module.exports.run = async function ({ api, event, args }) {
 
   const { threadID, messageID } = event;
-
   const query = args.join(" ");
 
   if (!query) {
     return api.sendMessage(
-      "🎵 Please enter a song name.\n\nExample:\nspotify heaven knows",
+      "🎵 Please enter a song name.\nExample: spotify believer",
       threadID,
       messageID
     );
@@ -31,34 +30,37 @@ module.exports.run = async function ({ api, event, args }) {
 
     api.sendMessage("🔎 Searching song...", threadID, messageID);
 
-    const search = await axios.get(
-      `https://doux.gleeze.com/search/mp3search?query=${encodeURIComponent(query)}`
-    );
-
-    const video = search.data.results.videos[0];
+    // search song
+    const res = await axios.get(`https://api.popcat.xyz/ytsearch?q=${encodeURIComponent(query)}`);
+    const video = res.data[0];
 
     if (!video) {
       return api.sendMessage("❌ Song not found.", threadID, messageID);
     }
 
     const title = video.title;
-    const channel = video.channelTitle;
+    const channel = video.channel;
     const duration = video.duration;
-    const thumb = video.thumbHigh || video.thumbMedium || video.thumbDefault;
+    const thumb = video.thumbnail;
     const videoId = video.id;
 
-    const audioUrl = `https://doux.gleeze.com/download/ytmp3?id=${videoId}`;
+    // youtube mp3 api
+    const audioApi = `https://api.vevioz.com/api/button/mp3/${videoId}`;
 
-    const audioPath = path.join(__dirname, "cache", `spotify_${Date.now()}.mp3`);
-    const coverPath = path.join(__dirname, "cache", `cover_${Date.now()}.jpg`);
+    // cache folder
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
-    // download audio
-    const audio = await axios.get(audioUrl, { responseType: "arraybuffer" });
-    fs.writeFileSync(audioPath, audio.data);
+    const audioPath = path.join(cacheDir, `spotify_${Date.now()}.mp3`);
+    const coverPath = path.join(cacheDir, `cover_${Date.now()}.jpg`);
 
     // download cover
     const cover = await axios.get(thumb, { responseType: "arraybuffer" });
     fs.writeFileSync(coverPath, cover.data);
+
+    // download audio
+    const audio = await axios.get(audioApi, { responseType: "arraybuffer" });
+    fs.writeFileSync(audioPath, audio.data);
 
     api.sendMessage(
       {
@@ -83,7 +85,7 @@ Duration: ${duration}`,
 
   } catch (err) {
 
-    console.error(err);
+    console.log(err);
 
     api.sendMessage(
       "❌ Failed to fetch the song.",
@@ -91,4 +93,5 @@ Duration: ${duration}`,
       messageID
     );
   }
+
 };
