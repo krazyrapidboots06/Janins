@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "pinterest",
-  version: "1.0.0",
+  version: "1.0.1",
   hasPermssion: 0,
   credits: "Yasis",
   description: "Search Pinterest images",
@@ -19,7 +19,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!args.length) {
     return api.sendMessage(
-      "📌 Please enter a search query.\n\nExample:\npinterest cats 5",
+      "📌 Example:\npinterest cat 5",
       threadID,
       messageID
     );
@@ -40,34 +40,37 @@ module.exports.run = async function ({ api, event, args }) {
 
   try {
 
-    api.sendMessage("📌 Fetching Pinterest images...", threadID, messageID);
+    api.sendMessage("📌 Searching Pinterest...", threadID, messageID);
 
-    const apiUrl = `https://deku-api.giize.com/search/pinterest?q=${encodeURIComponent(query)}`;
+    const url = `https://deku-api.giize.com/search/pinterest?q=${encodeURIComponent(query)}`;
 
-    const res = await axios.get(apiUrl);
+    const res = await axios.get(url);
 
-    if (!res.data || !res.data.result || res.data.result.length === 0) {
-      return api.sendMessage("❌ No images found.", threadID, messageID);
+    const pins = res.data.result.result.pins;
+
+    if (!pins || pins.length === 0) {
+      return api.sendMessage("❌ No results found.", threadID, messageID);
     }
-
-    const images = res.data.result.slice(0, limit);
 
     const attachments = [];
 
-    for (let i = 0; i < images.length; i++) {
+    for (let i = 0; i < Math.min(limit, pins.length); i++) {
+
+      const imgUrl = pins[i].media.images.large.url;
 
       const imgPath = path.join(__dirname, "cache", `pin_${Date.now()}_${i}.jpg`);
 
-      const img = await axios.get(images[i], { responseType: "arraybuffer" });
+      const img = await axios.get(imgUrl, { responseType: "arraybuffer" });
 
       fs.writeFileSync(imgPath, img.data);
 
       attachments.push(fs.createReadStream(imgPath));
+
     }
 
     api.sendMessage(
       {
-        body: `📌 Pinterest results for: ${query}\nImages: ${limit}`,
+        body: `📌 Pinterest results for "${query}"\nImages: ${attachments.length}`,
         attachment: attachments
       },
       threadID,
@@ -86,6 +89,7 @@ module.exports.run = async function ({ api, event, args }) {
       threadID,
       messageID
     );
+
   }
 
 };
