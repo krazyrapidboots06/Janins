@@ -1,88 +1,78 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 
 module.exports.config = {
   name: "spotify",
-  version: "1.0.0",
+  version: "1.3.0",
   hasPermssion: 0,
-  credits: "Yasis",
-  description: "Search Spotify and send song",
+  credits: "Vern",
+  description: "Fast Spotify search with instant playable audio",
   commandCategory: "music",
-  usages: "spotify <song name>",
-  cooldowns: 5
+  usages: "[song name]",
+  cooldowns: 3
 };
 
 module.exports.run = async function ({ api, event, args }) {
-
   const { threadID, messageID } = event;
+
+  if (!args.length) {
+    return api.sendMessage("📌 Usage: spotify <song name>", threadID, messageID);
+  }
+
   const query = args.join(" ");
 
-  if (!query) {
-    return api.sendMessage(
-      "🎵 Please enter a song name.\n\nExample:\nspotify multo",
-      threadID,
-      messageID
-    );
-  }
+  const loadingMsg = await api.sendMessage(
+    "🔎 Searching song...\n🎧 Preparing audio...",
+    threadID
+  );
 
   try {
-
-    api.sendMessage("🎧 Searching Spotify... please wait.", threadID, messageID);
-
-    const apiUrl = `https://deku-api.giize.com/search/spotify?q=${encodeURIComponent(query)}`;
-
+    const apiUrl = `https://api-library-kohi.onrender.com/api/spotify?song=${encodeURIComponent(query)}`;
     const res = await axios.get(apiUrl);
+    const data = res.data;
 
-    if (!res.data || !res.data.result || res.data.result.length === 0) {
-      return api.sendMessage("❌ Song not found.", threadID, messageID);
+    if (!data.status || !data.data?.audioUrl) {
+      return api.sendMessage(
+        `❌ No results found for "${query}".`,
+        threadID,
+        loadingMsg.messageID
+      );
     }
 
-    const song = res.data.result[0];
+    const song = data.data;
 
-    const title = song.title || "Unknown";
-    const artist = song.artist || "Unknown";
-    const cover = song.image;
-    const audio = song.audio || song.download || song.preview;
-
-    const audioPath = path.join(__dirname, "cache", `spotify_${Date.now()}.mp3`);
-    const coverPath = path.join(__dirname, "cache", `spotify_${Date.now()}.jpg`);
-
-    if (cover) {
-      const img = await axios.get(cover, { responseType: "arraybuffer" });
-      fs.writeFileSync(coverPath, img.data);
-    }
-
-    if (audio) {
-      const aud = await axios.get(audio, { responseType: "arraybuffer" });
-      fs.writeFileSync(audioPath, aud.data);
-    }
-
-    api.sendMessage(
+    // 📸 SEND COVER FIRST (FAST)
+    await api.sendMessage(
       {
-        body: `🎵 ${title}\n👤 Artist: ${artist}`,
-        attachment: [
-          fs.existsSync(coverPath) ? fs.createReadStream(coverPath) : null,
-          fs.existsSync(audioPath) ? fs.createReadStream(audioPath) : null
-        ].filter(Boolean)
+        body:
+          `🎵 ${song.title}\n` +
+          `👤 ${song.artist}\n` +
+          `⏱ ${Math.floor(song.duration / 60)}:${(song.duration % 60)
+            .toString()
+            .padStart(2, "0")}`,
+        attachment: await axios
+          .get(song.thumbnail, { responseType: "stream" })
+          .then(r => r.data)
       },
-      threadID,
-      () => {
-        if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-        if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath);
-      },
-      messageID
+      threadID
     );
+
+    // 🎧 STREAM AUDIO DIRECTLY (NO DOWNLOAD)
+    const audioStream = await axios.get(song.audioUrl, {
+      responseType: "stream"
+    });
+
+    await api.sendMessage(
+      {
+        body: "▶️ Now Playing:",
+        attachment: audioStream.data
+      },
+      threadID
+    );
+
+    api.unsendMessage(loadingMsg.messageID);
 
   } catch (err) {
-
-    console.error(err);
-
-    api.sendMessage(
-      "❌ Failed to fetch the song.",
-      threadID,
-      messageID
-    );
+    console.error("SPOTIFY FAST ERROR:", err.message);
+    api.sendMessage("❌ Failed to send audio.", threadID, loadingMsg.messageID);
   }
-
 };
