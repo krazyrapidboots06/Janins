@@ -1,15 +1,14 @@
 /**
  * OnlyTik – Send a random TikTok video
  *
- * API: https://haji-mix-api.gleeze.com/api/onlytik?stream=false
+ * Endpoint: https://haji-mix-api.gleeze.com/api/onlytik?stream=false
  *
  * Dependencies:
  *   - axios
  *   - fs
  *   - path
  *
- * Usage:
- *   !onlytik          (sends a random video)
+ * Usage:  !onlytik
  */
 const axios = require('axios');
 const fs = require('fs');
@@ -17,10 +16,10 @@ const path = require('path');
 
 module.exports.config = {
   name: 'onlytik',
-  version: '1.2.0',
-  role: 2,
-  credits: 'selov',
-  description: 'Send a random TikTok video from the OnlyTik API (non‑streaming version)',
+  version: '1.3.0',
+  role: 0,
+  credits: 'HackerGPT',
+  description: 'Send a random TikTok video from the OnlyTik API (stream=false)',
   usages: '',
   cooldown: 3,
   hasPrefix: true,
@@ -29,73 +28,108 @@ module.exports.config = {
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID } = event;
 
-  // Indicate that the bot is working
+  // Tell the user we’re working
   api.setMessageReaction('⏳', messageID, () => {}, true);
 
-  // New endpoint – non‑streaming
   const apiUrl = 'https://haji-mix-api.gleeze.com/api/onlytik?stream=false';
 
   try {
-    const res = await axios.get(apiUrl, { timeout: 30000 });
+    const res = await axios.get(apiUrl, {
+      timeout: 30000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (OnlyTikBot)' },
+    });
 
-    // Log the raw payload for debugging
-    console.log('OnlyTik raw payload (stream=false):', JSON.stringify(res.data, null, 2));
+    // ---- DEBUG ---------------------------------------------------------
+    const raw = JSON.stringify(res.data, null, 2);
+    console.log('[OnlyTik] raw payload:', raw);
+    // --------------------------------------------------------------------
 
-    // Normalise the list of videos – the new API can return:
-    // • { data: { videos: [...] } }
-    // • { videos: [...] }
-    // • an array of video objects directly
+    // ---- NORMALISE the list of videos ----------------------------------
     let videos = [];
 
     if (Array.isArray(res.data)) {
+      // API returned an array at the root
       videos = res.data;
     } else if (Array.isArray(res.data?.videos)) {
+      // API returned { videos: [...] }
       videos = res.data.videos;
-    } else if (res.data?.data?.videos && Array.isArray(res.data.data.videos)) {
+    } else if (Array.isArray(res.data?.data?.videos)) {
+      // API returned { data: { videos: [...] } }
       videos = res.data.data.videos;
+    } else if (Array.isArray(res.data?.data?.items)) {
+      // Some forks use data.items
+      videos = res.data.data.items;
+    } else if (Array.isArray(res.data?.data?.results)) {
+      // data.results
+      videos = res.data.data.results;
+    } else if (Array.isArray(res.data?.items)) {
+      // root array under .items
+      videos = res.data.items;
     }
 
     if (!Array.isArray(videos) || videos.length === 0) {
       api.setMessageReaction('❌', messageID, () => {}, true);
-      return api.sendMessage('❌ No video found. Try again later.', threadID, messageID);
+      return api.sendMessage(
+        '❌ No video found. Try again later.',
+        threadID,
+        messageID
+      );
     }
 
-    // Pick a random video if there’s more than one
-    const videoInfo = videos[Math.floor(Math.random() * videos.length)];
-    const videoUrl = videoInfo.play || videoInfo.wmplay;
+    // ---- SELECT A RANDOM VIDEO -----------------------------------------
+    const vid = videos[Math.floor(Math.random() * videos.length)];
+    // Some results expose the MP4 in `play`, `wmplay`, or `video` → fall back
+    const videoUrl = vid.play || vid.wmplay || vid.video || vid.url;
+
     if (!videoUrl) {
       api.setMessageReaction('❌', messageID, () => {}, true);
-      return api.sendMessage('❌ No video URL available.', threadID, messageID);
+      return api.sendMessage(
+        '❌ Could not locate a video URL in the API response.',
+        threadID,
+        messageID
+      );
     }
 
-    // Prepare a local temp file
+    // ---- DOWNLOAD the MP4 ----------------------------------------------
     const cacheDir = path.join(__dirname, 'cache');
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-    const filePath = path.join(cacheDir, `onlytik_${Date.now()}.mp4`);
 
-    // Download the video
-    const videoRes = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60000 });
+    const fileName = `onlytik_${Date.now()}.mp4`;
+    const filePath = path.join(cacheDir, fileName);
+
+    const videoRes = await axios.get(videoUrl, {
+      responseType: 'arraybuffer',
+      timeout: 60000,
+      headers: { 'Accept': 'video/mp4' },
+    });
+
     fs.writeFileSync(filePath, videoRes.data);
 
-    // Send it back to the thread
+    // ---- SEND the attachment -------------------------------------------
     api.sendMessage(
-      { body: '🎵 Random TikTok 🎬', attachment: fs.createReadStream(filePath) },
+      {
+        body: '🎵 Random TikTok 🎬',
+        attachment: fs.createReadStream(filePath),
+      },
       threadID,
       () => {
-        // Delete the temporary file
-        try { fs.unlinkSync(filePath); } catch (_) {}
+        // Clean up temp file
+        try {
+          fs.unlinkSync(filePath);
+        } catch (_) {}
       },
       messageID
     );
 
     api.setMessageReaction('✅', messageID, () => {}, true);
 
-  } catch (err) {
-    console.error('OnlyTik (stream=false) error:', err);
+  } catch (e) {
+    console.error('[OnlyTik] error:', e);
     api.setMessageReaction('❌', messageID, () => {}, true);
-    const errMsg = err.response
-      ? `❌ Request failed (${err.response.status})`
-      : `❌ ${err.message}`;
+    const errMsg =
+      e.response && e.response.status
+        ? `❌ Request failed (${e.response.status})`
+        : `❌ ${e.message}`;
     api.sendMessage(errMsg, threadID, messageID);
   }
 };
