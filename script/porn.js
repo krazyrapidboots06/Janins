@@ -1,61 +1,75 @@
 module.exports.config = {
-  name: "porn",
-  version: "1.0", 
-  role: 0,
-  credits: "syntaxt0x1c",
-  description: "Get a random PornHub video.",
+    name: "porn",
+    version: "1.0", 
+    role: 0,
+    credits: "syntaxt0x1c",
+    description: "Find and download a PornHub video.",
 };
 
 module.exports.run = async ({ api, event }) => {
-  const axios = require('axios');
-  
-  try {
-    // Construct API request URL
-    const url = 'https://betadash-api-swordslush-production.up.railway.app/pornhub/random';
-
-    // Send request to PornHub random endpoint
-    const response = await axios.get(url);
+    const axios = require("axios");
     
-    if (!response.data || !response.data.videos) {
-      return api.sendMessage("Failed to fetch video.", event.threadID);
-    }
-
-    let videoUrl;
-    for (const video of response.data.videos) {
-      if (!video.link) continue;
-
-      try {
-        // Test if the link is valid with timeout
-        await axios.head(video.link, { timeout: 5000 });
+    try {
+        // Get the API response with timeout protection
+        const { data } = await axios.get(
+            `https://betadash-api-swordslush-production.up.railway.app/pornhub?apikey=shipazu`,
+            { timeout: 15000 }
+        );
         
-        videoUrl = video.link;
-        break;
-      } catch (e) {}
+        if (!data || !Array.isArray(data) || !data.length) {
+            return api.sendMessage("No videos available in response.", event.threadID);
+        }
+
+        // Find the first valid video link
+        let bestLink = null;
+        for (const item of data) {
+            if (item.link && typeof item.link === 'string') {
+                try {
+                    await axios.head(item.link, { timeout: 5000 });
+                    bestLink = item.link; 
+                    break;
+                } catch (_) {}
+            }
+        }
+
+        if (!bestLink) {
+            return api.sendMessage("No working video link found.", event.threadID);
+        }
+
+        // Stream the download directly to disk
+        const path = `${__dirname}/cache/porn_${Date.now()}.mp4`;
+        
+        await new Promise((resolve, reject) => {
+            const writer = fs.createWriteStream(path);
+
+            axios({
+                url: bestLink,
+                method: 'GET',
+                responseType: 'stream',
+                timeout: 20000
+            })
+            .then(response => response.data.pipe(writer))
+            .catch(reject);
+            
+            // Cleanup if download fails midway
+            writer.on('error', reject);
+        });
+
+        // Send the video back to chat with metadata
+        api.sendMessage({
+            body: `PornHub Video (${data.length} results returned)`,
+            attachment: fs.createReadStream(path)
+        }, event.threadID);
+
+        // Clean up after sending
+        setTimeout(() => {
+            if (fs.existsSync(path)) {
+                try { fs.unlinkSync(path); } catch (_) {}
+            }
+        }, 5000);
+        
+    } catch (err) {
+        console.error("[porn] Error:", err.message);
+        api.sendMessage(`Error fetching video: ${err.message}`, event.threadID);
     }
-
-    if (!videoUrl) return api.sendMessage("No playable videos available.", event.threadID);
-
-    // Download the video to cache
-    const cacheDir = path.join(__dirname, "cache");
-    fs.existsSync(cacheDir) || fs.mkdirSync(cacheDir, { recursive: true });
-    
-    const tempPath = path.join(cacheDir, `porn_${Date.now()}.mp4`);
-    await axios.get(videoUrl, {
-      responseType: 'stream',
-      timeout: 15000
-    }).then(response => response.data.pipe(fs.createWriteStream(tempPath)));
-
-    // Send the video to chat and cleanup when done
-    api.sendMessage({ attachment: fs.createReadStream(tempPath) }, event.threadID);
-    
-    setTimeout(() => {
-      try { 
-        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); 
-      } catch(e) {}
-    }, 3000);
-
-  } catch (error) {
-    console.error("Porn download error:", error.message);
-    return api.sendMessage(`Download failed: ${error.message}`, event.threadID);
-  }
 };
