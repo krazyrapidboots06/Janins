@@ -1,144 +1,155 @@
 const axios = require("axios");
 
-// Configuration file URL
+module.exports.config = {
+  name: "gpt",
+  version: "1.0.0",
+  hasPermssion: 0,
+  credits: "Yasis",
+  description: "Chat with GPT AI",
+  commandCategory: "ai",
+  usages: "gpt <ask a questions>",
+  cooldowns: 2
+};
+
+// Simple memory per thread
+const memory = {};
+
+// API Configuration URL
 const CONFIG_URL = "https://raw.githubusercontent.com/Saim-x69x/sakura/main/ApiUrl.json";
 
-// Main command module
-module.exports = {
-  config: {
-    name: "gpt",
-    version: "2.0",
-    author: "System",
-    countDown: 3,
-    role: 0,
-    shortDescription: "Chat with GPT AI",
-    longDescription: "Interact with AI using multiple API endpoints",
-    guide: "{p}gpt <your question>"
-  },
+module.exports.run = async function ({ api, event, args }) {
+  const { threadID, messageID, senderID } = event;
+  
+  let prompt = args.join(" ").trim();
 
-  onStart: async function ({ api, event, args, message }) {
-    const userQuestion = args.join(" ").trim();
+  try {
+    // Get user name
+    const user = await api.getUserInfo(senderID);
+    const senderName = user[senderID]?.name || "User";
 
-    if (!userQuestion) {
-      return message.reply(
-        "❌ Please provide a question.\n\n**Example:**\n/gpt what is the meaning of life?"
+    // Initialize memory
+    if (!memory[threadID]) memory[threadID] = [];
+    memory[threadID].push(`${senderName} asked: ${prompt || "nothing"}`);
+
+    if (!prompt) {
+      return api.sendMessage(
+        "📌 Please ask a question.\n\nExample: gpt what is the meaning of life?",
+        threadID,
+        messageID
       );
     }
 
     // Fetch API endpoints
     let endpoints;
     try {
-      const response = await axios.get(CONFIG_URL);
-      endpoints = response.data;
-    } catch (error) {
-      console.error("Failed to fetch API config:", error.message);
-      return message.reply("❌ Failed to load API configuration. The config server might be down.");
+      const res = await axios.get(CONFIG_URL);
+      endpoints = res.data;
+    } catch (e) {
+      console.error("Config fetch error:", e.message);
+      return api.sendMessage("❌ Failed to load API configuration.", threadID, messageID);
     }
 
-    // Send initial "thinking" message
-    const processingMsg = await message.reply("🤔 GPT is thinking...");
-
-    // Define APIs with their specific configurations
-    const apis = [
+    // List of APIs to try
+    const apiList = [
       {
+        url: endpoints.apiv3,
         name: "GPT-1",
-        url: endpoints.apiv3, // This is already a full /generate endpoint
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        formatRequest: (prompt) => ({ prompt: prompt, max_tokens: 300 }),
-        extractResponse: (data) => data.response || data.text || data.message || data.generated_text
+        format: (p) => ({ prompt: p, max_tokens: 500 })
       },
       {
-        name: "Saim AI",
         url: `${endpoints.apiv1}/chat`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        formatRequest: (prompt) => ({ question: prompt, temperature: 0.7 }),
-        extractResponse: (data) => data.answer || data.response || data.message || data.text
+        name: "Saim AI",
+        format: (p) => ({ question: p })
       },
       {
-        name: "Goat AI",
         url: `${endpoints.apiv4}/ask`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        formatRequest: (prompt) => ({ query: prompt }),
-        extractResponse: (data) => data.response || data.message || data.answer
+        name: "Goat AI",
+        format: (p) => ({ query: p })
       },
       {
-        name: "ZetBot",
         url: `${endpoints.apiv5}/ai`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        formatRequest: (prompt) => ({ text: prompt }),
-        extractResponse: (data) => data.reply || data.text || data.message || data.response
+        name: "ZetBot",
+        format: (p) => ({ text: p })
       },
       {
-        name: "Gist AI",
         url: `${endpoints.gist}/chat`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        formatRequest: (prompt) => ({ message: prompt }),
-        extractResponse: (data) => data.reply || data.message || data.text
+        name: "Gist AI",
+        format: (p) => ({ message: p })
       }
     ];
 
-    let lastError = null;
+    let responseText = null;
+    let usedAPI = "";
 
-    // Try each API in sequence until one works
-    for (const api of apis) {
+    // Try each API
+    for (const api of apiList) {
       try {
-        console.log(`🔄 Trying ${api.name}...`);
-
-        const requestData = api.formatRequest(userQuestion);
+        console.log(`Trying ${api.name}...`);
         
-        const response = await axios({
-          method: api.method,
-          url: api.url,
-          data: requestData,
-          headers: api.headers,
-          timeout: 25000 // 25 second timeout
+        const res = await axios.post(api.url, api.format(prompt), {
+          timeout: 15000,
+          headers: { 'Content-Type': 'application/json' }
         });
 
-        // Extract the response text using the API's specific extractor
-        let replyText = api.extractResponse(response.data);
-
-        // If extraction failed, try to find any text in the response
-        if (!replyText && typeof response.data === 'string') {
-          replyText = response.data;
-        } else if (!replyText && response.data) {
-          // Last resort: stringify the whole response if it's an object
-          replyText = JSON.stringify(response.data);
+        // Extract response from various formats
+        const data = res.data;
+        
+        if (typeof data === 'string') {
+          responseText = data;
+        } else if (data.response) {
+          responseText = data.response;
+        } else if (data.message) {
+          responseText = data.message;
+        } else if (data.answer) {
+          responseText = data.answer;
+        } else if (data.text) {
+          responseText = data.text;
+        } else if (data.content) {
+          responseText = data.content;
+        } else if (data.result) {
+          responseText = data.result;
+        } else if (data.reply) {
+          responseText = data.reply;
+        } else if (data.generated_text) {
+          responseText = data.generated_text;
+        } else if (data.output) {
+          responseText = data.output;
+        } else if (data.choices?.[0]?.text) {
+          responseText = data.choices[0].text;
+        } else if (data.choices?.[0]?.message?.content) {
+          responseText = data.choices[0].message.content;
         }
 
-        if (replyText && replyText.length > 0) {
-          // Clean up the response (remove excessive whitespace)
-          replyText = replyText.replace(/\s+/g, ' ').trim();
-
-          // Delete the processing message
-          await api.unsendMessage(processingMsg.messageID);
-
-          // Send the successful response
-          return message.reply(
-            `🤖 **${api.name} Response**\n━━━━━━━━━━━━━━━━\n${replyText}\n━━━━━━━━━━━━━━━━`
-          );
+        if (responseText) {
+          usedAPI = api.name;
+          break;
         }
-
-      } catch (error) {
-        console.log(`❌ ${api.name} failed:`, error.message);
-        lastError = error;
-        // Continue to next API
+      } catch (err) {
+        console.log(`${api.name} failed:`, err.message);
+        continue;
       }
     }
 
-    // If all APIs failed
-    await api.unsendMessage(processingMsg.messageID);
-
-    let errorMessage = "❌ All AI services failed to respond.\n";
-    if (lastError) {
-      errorMessage += `\n**Last error:** ${lastError.message}`;
+    if (!responseText) {
+      return api.sendMessage("❌ No AI service responded. Try again later.", threadID, messageID);
     }
-    errorMessage += "\n\nPlease try again in a few moments.";
 
-    return message.reply(errorMessage);
+    // Store in memory
+    memory[threadID].push(`GPT response from ${usedAPI}`);
+
+    // Send response
+    return api.sendMessage(
+      `🤖 GPT (${usedAPI})\n━━━━━━━━━━━━━━\n${responseText}`,
+      threadID,
+      messageID
+    );
+
+  } catch (err) {
+    console.error("GPT Command Error:", err);
+    return api.sendMessage(
+      `❌ Error: ${err.message}`,
+      threadID,
+      messageID
+    );
   }
 };
