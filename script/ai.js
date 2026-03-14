@@ -4,100 +4,56 @@ const path = require("path");
 
 module.exports.config = {
   name: "ai",
-  version: "8.0.0",
+  version: "9.0.0",
   hasPermssion: 0,
-  credits: "selov",
+  credits: "Yasis",
   description: "AI with normal boy voice response",
   commandCategory: "search",
   usages: "/ai <text>",
-  cooldowns: 3,
-  usePrefix: true
+  cooldowns: 3
 };
 
 // Simple memory per thread with user profiles
 const memory = {};
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, attachments, senderID } = event;
+  const { threadID, messageID, senderID } = event;
 
   // Join all args to get the full prompt
   let prompt = args.join(" ").trim();
   
   try {
-    // Get user info with full details
+    // Get user info
     const user = await api.getUserInfo(senderID);
     const userData = user[senderID];
     const senderName = userData?.name || "User";
     const firstName = senderName.split(' ')[0] || senderName;
 
-    // Initialize memory with user profile
-    if (!memory[threadID]) {
-      memory[threadID] = {
-        users: {},
-        conversations: []
-      };
-    }
-
-    // Store user info in thread memory
-    memory[threadID].users[senderID] = {
-      name: senderName,
-      firstName: firstName,
-      lastSeen: Date.now(),
-      interactions: (memory[threadID].users[senderID]?.interactions || 0) + 1
-    };
-
-    // Check image attachment
-    if (attachments && attachments.length > 0) {
-      const photo = attachments.find(a => a.type === "photo");
-      if (photo) {
-        const imageUrl = photo.url;
-        prompt = `Describe this photo in detail like a human. The user's name is ${firstName}:\n${imageUrl}`;
-      }
-    }
-
+    // Check if prompt is empty
     if (!prompt) {
       return api.sendMessage(
-        `📌 Hello ${firstName}! Ask me anything.\n\nExample: /ai what is your name?`,
+        `❌ Please ask a question.\n\nExample: /ai what is your name?`,
         threadID,
         messageID
       );
     }
 
-    // Send typing indicator (visual only, no message)
+    // Send typing indicator
     api.sendTypingIndicator(threadID, true);
 
-    // Get AI response (no visible message)
-    const enhancedPrompt = `The user's name is ${firstName} (full name: ${senderName}). Please address them by their name in your response naturally. Keep your response concise and friendly. Question: ${prompt}`;
-    const aiUrl = `https://vern-rest-api.vercel.app/api/chatgpt4?prompt=${encodeURIComponent(enhancedPrompt)}`;
+    // Get AI response from ChatGPT API
+    const aiUrl = `https://deku-rest-api-spring.onrender.com/chatgpt?prompt=${encodeURIComponent(prompt)}`;
+    
     const aiResponse = await axios.get(aiUrl);
-
-    if (!aiResponse.data) {
-      return api.sendMessage("❌ No response from AI server.", threadID, messageID);
-    }
-
-    // Detect response format
-    const replyText =
-      aiResponse.data.result ||
-      aiResponse.data.response ||
-      aiResponse.data.message ||
-      aiResponse.data.answer;
-
-    if (!replyText) {
-      return api.sendMessage("❌ AI returned an unknown response format.", threadID, messageID);
-    }
-
-    // Store conversation in memory
-    memory[threadID].conversations.push({
-      user: senderID,
-      userName: firstName,
-      prompt: prompt,
-      response: replyText,
-      timestamp: Date.now()
-    });
-
-    // Keep only last 10 conversations
-    if (memory[threadID].conversations.length > 10) {
-      memory[threadID].conversations.shift();
+    
+    let replyText = "I'm sorry, I couldn't process that request.";
+    
+    if (aiResponse.data && aiResponse.data.response) {
+      replyText = aiResponse.data.response;
+    } else if (aiResponse.data && aiResponse.data.message) {
+      replyText = aiResponse.data.message;
+    } else if (aiResponse.data && aiResponse.data.result) {
+      replyText = aiResponse.data.result;
     }
 
     // Create cache directory
@@ -106,12 +62,9 @@ module.exports.run = async function ({ api, event, args }) {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    // Convert text to speech with NORMAL BOY VOICE
-    // Using en-US-Wavenet-A which is a standard male voice
-    const ttsText = replyText.substring(0, 200); // Limit to 200 chars
-    
-    // Using StreamElements API for better voice quality
-    const ttsUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Joey&text=${encodeURIComponent(ttsText)}`;
+    // Convert text to speech using Google TTS (most reliable)
+    const ttsText = encodeURIComponent(replyText.substring(0, 200));
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q=${ttsText}`;
     
     const audioPath = path.join(cacheDir, `tts_${Date.now()}.mp3`);
     const audioResponse = await axios.get(ttsUrl, { 
@@ -124,7 +77,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     fs.writeFileSync(audioPath, audioResponse.data);
 
-    // Send ONLY audio - no text messages at all
+    // Send ONLY audio
     api.sendMessage(
       {
         attachment: fs.createReadStream(audioPath)
@@ -146,7 +99,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   } catch (err) {
     console.error("AI TTS Error:", err);
-    // Silent fail - no error message shown to user
-    // Just log to console
+    // Send error message so user knows something went wrong
+    api.sendMessage(`❌ Error: ${err.message}`, threadID, messageID);
   }
 };
