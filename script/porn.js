@@ -1,63 +1,77 @@
-/* ========  Porn command  ======== */
+/* ========  Porn command (updated)  ======== */
 module.exports.config = {
-	name: "porn",
-	version: "1.1",
-	hasPrefix: true,          // required – we’re sending NSFW content
-	credits: "syntaxt0x1c",
-	role: 2,
-	description: "Send a random porn video from the public API.",
+    name: "porn",
+    version: "1.2",
+    hasPrefix: true,          // required – we’re sending NSFW content
+    credits: "syntaxt0x1c",
+    role: 2,
+    description: "Send a random porn video from the public API.",
 };
 
 module.exports.run = async ({ api, event }) => {
-	const axios = require("axios");
+    const axios = require("axios");
 
-	/* Tell the user we’re working on the request */
-	await api.setMessageReaction("⏳", event.messageID, err => {}, true);
-	api.sendTypingIndicator(event.threadID, true);
+    // Tell the user we’re working on the request
+    await api.setMessageReaction("⏳", event.messageID, err => {}, true);
+    api.sendTypingIndicator(event.threadID, true);
 
-	try {
-		/* Grab the JSON array from the raw GitHub file */
-		const res = await axios.get(
-			"https://raw.githubusercontent.com/jaydbohol-crypto/P/refs/heads/main/API/p.json"
-		);
+    try {
+        // Grab the JSON from the raw GitHub file
+        const res = await axios.get(
+            "https://raw.githubusercontent.com/jaydbohol-crypto/P/refs/heads/main/API/p.json"
+        );
 
-		/* Validate the payload */
-		if (!Array.isArray(res.data) || res.data.length === 0) {
-			return api.sendMessage("❌ No video data found.", event.threadID);
-		}
+        /* --------------------------- */
+        /*   Detect the payload shape   */
+        /* --------------------------- */
+        let videoUrl;
+        let title = "Adult Video";
+        let tags = "";
+        let description = "";
 
-		/* Pick a random entry */
-		const vid = res.data[Math.floor(Math.random() * res.data.length)];
+        // 1️⃣ Modern array format
+        if (Array.isArray(res.data) && res.data.length > 0) {
+            const item = res.data[Math.floor(Math.random() * res.data.length)];
+            if (!item.url) throw new Error("Item missing 'url' field");
+            videoUrl = item.url;
+            title = item.title ?? title;
+            tags = Array.isArray(item.tags) ? item.tags.join(", ") : tags;
+            description = item.description ?? description;
+        }
+        // 2️⃣ Legacy single‑object format
+        else if (res.data.result && typeof res.data.result.video === "string") {
+            videoUrl = res.data.result.video;
+            title = "Legacy Video";
+            // No tags / description available in the legacy payload
+        }
+        else {
+            throw new Error("Unexpected JSON structure");
+        }
 
-		/* Basic sanity check – we expect at least a `url` field */
-		if (!vid.url || typeof vid.url !== "string") {
-			return api.sendMessage("❌ Selected video has no valid URL.", event.threadID);
-		}
+        /* --------------------------- */
+        /*   Send the results            */
+        /* --------------------------- */
+        // 1️⃣ Optional metadata
+        await api.sendMessage(
+            `🎬 ${title}\n💬 ${tags}\n📄 ${description}`,
+            event.threadID
+        );
 
-		/* Optional metadata: title / tags / description */
-		const title = vid.title ?? "Adult Video";
-		const tags  = Array.isArray(vid.tags) ? vid.tags.join(", ") : "";
-		const desc  = vid.description ?? "";
-
-		/* Send the metadata first (so the attachment isn’t lost) */
-		await api.sendMessage(
-			`🎬 ${title}\n💬 ${tags}\n📄 ${desc}`,
-			event.threadID
-		);
-
-		/* Finally send the video file as an attachment */
-		await api.sendMessage(
-			{
-				body: "Enjoy the video 👀",
-				attachment: vid.url,
-				mentions: [],
-			},
-			event.threadID
-		);
-
-	} catch (e) {
-		console.error(e);
-		await api.setMessageReaction("❌", event.messageID, true);
-		return api.sendMessage("❌ Failed to fetch porn video.", event.threadID);
-	}
+        // 2️⃣ Send the video file
+        await api.sendMessage(
+            {
+                body: "Enjoy the video 👀",
+                attachment: videoUrl,
+                mentions: [],
+            },
+            event.threadID
+        );
+    } catch (err) {
+        console.error(err);
+        await api.setMessageReaction("❌", event.messageID, true);
+        return api.sendMessage(
+            `❌ Failed to fetch porn video: ${err.message}`,
+            event.threadID
+        );
+    }
 };
