@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "ai",
-  version: "4.0.0",
+  version: "4.1.0",
   hasPermssion: 0,
   credits: "selov",
   description: "AI with voice response that knows your name",
@@ -61,10 +61,10 @@ module.exports.run = async function ({ api, event, args }) {
       );
     }
 
-    // Send typing indicator only (no visible message)
+    // Send typing indicator only
     api.sendTypingIndicator(threadID, true);
 
-    // Enhance prompt with user's name for personalized response
+    // Enhance prompt with user's name
     const enhancedPrompt = `The user's name is ${firstName} (full name: ${senderName}). Please address them by their name in your response naturally. Keep your response concise and friendly. Question: ${prompt}`;
 
     // Get AI response (YOUR ORIGINAL API)
@@ -75,7 +75,7 @@ module.exports.run = async function ({ api, event, args }) {
       return; // Silent fail
     }
 
-    // Detect response format automatically
+    // Detect response format
     const replyText =
       aiResponse.data.result ||
       aiResponse.data.response ||
@@ -84,7 +84,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     if (!replyText) {
       console.log("API RAW RESPONSE:", aiResponse.data);
-      return; // Silent fail
+      return;
     }
 
     // Store conversation in memory
@@ -107,25 +107,25 @@ module.exports.run = async function ({ api, event, args }) {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    // Convert text to speech with NORMAL BOY VOICE
-    // Using StreamElements API for better voice quality
+    // FIXED: Using Google TTS which is most reliable
     const ttsText = encodeURIComponent(replyText.substring(0, 200));
     
-    // CHANGED: Using "Joey" for normal boy voice (not deep)
-    const ttsUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Joey&text=${ttsText}`;
+    // Google TTS (always works, free, no API key needed)
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q=${ttsText}`;
     
     const audioPath = path.join(cacheDir, `tts_${Date.now()}.mp3`);
     const audioResponse = await axios.get(ttsUrl, { 
       responseType: "arraybuffer",
       timeout: 30000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'http://translate.google.com/'
       }
     });
 
     fs.writeFileSync(audioPath, audioResponse.data);
 
-    // Send ONLY audio - no text messages at all
+    // Send ONLY audio
     api.sendMessage(
       {
         attachment: fs.createReadStream(audioPath)
@@ -147,6 +147,6 @@ module.exports.run = async function ({ api, event, args }) {
 
   } catch (err) {
     console.error("AI TTS Error:", err);
-    // Silent fail - no message shown to user
+    // Silent fail
   }
 };
