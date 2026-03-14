@@ -4,30 +4,33 @@ const path = require("path");
 
 module.exports.config = {
   name: "test",
-  version: "1.0.0",
+  version: "3.0.0",
   hasPermssion: 0,
-  credits: "selov",
-  description: "Send a random video from JSON database",
+  credits: "Yasis",
+  description: "Send videos in sequence from JSON database",
   commandCategory: "test",
   usages: "/test",
   cooldowns: 2
 };
 
-// Path to JSON file
+// Path to videos.json in script folder
 const jsonPath = path.join(__dirname, "videos.json");
+
+// Path to store the current index
+const indexPath = path.join(__dirname, "cache", "video_index.txt");
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
   try {
-    // Get user name
     const user = await api.getUserInfo(senderID);
     const senderName = user[senderID]?.name || "User";
 
     // Check if JSON file exists
     if (!fs.existsSync(jsonPath)) {
       return api.sendMessage(
-        "❌ videos.json file not found in cache folder.",
+        `❌ videos.json not found at: ${jsonPath}\n\n` +
+        `Please create the file in your script folder.`,
         threadID,
         messageID
       );
@@ -41,22 +44,41 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("❌ No videos found in database.", threadID, messageID);
     }
 
-    // Get random video
-    const randomIndex = Math.floor(Math.random() * videos.length);
-    const selectedVideo = videos[randomIndex];
-
-    // Send typing indicator
-    api.sendTypingIndicator(threadID, true);
-
-    const waiting = await api.sendMessage("🎬 Fetching random video...", threadID, messageID);
-
-    // Download the video
-    const cacheDir = path.join(__dirname, "cache", "temp");
+    // Create cache directory if it doesn't exist
+    const cacheDir = path.join(__dirname, "cache");
     if (!fs.existsSync(cacheDir)) {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const videoPath = path.join(cacheDir, `test_${Date.now()}.mp4`);
+    // Read current index or start at 0
+    let currentIndex = 0;
+    if (fs.existsSync(indexPath)) {
+      currentIndex = parseInt(fs.readFileSync(indexPath, 'utf8')) || 0;
+    }
+
+    // Get the current video based on index
+    const selectedVideo = videos[currentIndex];
+    
+    // Calculate next index (loop back to 0 if at the end)
+    const nextIndex = (currentIndex + 1) % videos.length;
+    
+    // Save the next index for future use
+    fs.writeFileSync(indexPath, nextIndex.toString());
+
+    api.sendTypingIndicator(threadID, true);
+    const waiting = await api.sendMessage(
+      `🎬 Sending video ${currentIndex + 1}/${videos.length}...`, 
+      threadID, 
+      messageID
+    );
+
+    // Download the video
+    const tempDir = path.join(cacheDir, "temp");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const videoPath = path.join(tempDir, `test_${Date.now()}.mp4`);
     
     const videoRes = await axios.get(selectedVideo.url, { 
       responseType: "arraybuffer",
@@ -67,23 +89,22 @@ module.exports.run = async function ({ api, event, args }) {
     });
 
     fs.writeFileSync(videoPath, videoRes.data);
-
-    // Get file size
     const stats = fs.statSync(videoPath);
     const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
-    // Delete waiting message
     api.unsendMessage(waiting.messageID);
 
-    // Send the video
+    // Send the video with queue info
     api.sendMessage(
       {
-        body: `🎬 **TEST VIDEO**\n━━━━━━━━━━━━━━━━\n` +
+        body: `🎬 **VIDEO QUEUE**\n━━━━━━━━━━━━━━━━\n` +
               `**Title:** ${selectedVideo.title || 'Untitled'}\n` +
               `**Duration:** ${selectedVideo.duration || 'Unknown'}\n` +
               `**Source:** ${selectedVideo.source || 'Unknown'}\n` +
               `**Size:** ${fileSizeMB} MB\n` +
-              `**Video #:** ${randomIndex + 1}/${videos.length}\n` +
+              `━━━━━━━━━━━━━━━━\n` +
+              `**Progress:** ${currentIndex + 1}/${videos.length}\n` +
+              `**Next:** ${nextIndex + 1}. ${videos[nextIndex].title}\n` +
               `━━━━━━━━━━━━━━━━\n` +
               `💬 Requested by: ${senderName}`,
         attachment: fs.createReadStream(videoPath)
