@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "red",
-  version: "2.0.0",
+  version: "3.0.0",
   hasPermssion: 0,
   credits: "Yasis",
   description: "Fetch a random video from the API",
@@ -28,29 +28,76 @@ module.exports.run = async function ({ api, event }) {
     });
 
     const data = response.data;
+    console.log("API Response:", JSON.stringify(data, null, 2).substring(0, 500)); // Debug log
 
-    // Check if data exists and has results
-    if (!data || !data.results || data.results.length === 0) {
-      api.unsendMessage(waiting.messageID);
-      return api.sendMessage("❌ No videos found.", threadID, messageID);
+    // Try different possible response structures
+    let videos = [];
+    
+    if (data && Array.isArray(data)) {
+      videos = data;
+    } else if (data && data.results && Array.isArray(data.results)) {
+      videos = data.results;
+    } else if (data && data.data && Array.isArray(data.data)) {
+      videos = data.data;
+    } else if (data && data.videos && Array.isArray(data.videos)) {
+      videos = data.videos;
+    } else if (data && typeof data === 'object') {
+      // If it's an object with numbered keys (like {0: {...}, 1: {...}})
+      const possibleVideos = Object.values(data).filter(val => val && typeof val === 'object');
+      if (possibleVideos.length > 0) {
+        videos = possibleVideos;
+      }
     }
 
-    // Get random video from results array
-    const videos = data.results;
+    if (videos.length === 0) {
+      api.unsendMessage(waiting.messageID);
+      return api.sendMessage("❌ No videos found in response.", threadID, messageID);
+    }
+
+    // Get random video
     const randomIndex = Math.floor(Math.random() * videos.length);
     const videoInfo = videos[randomIndex];
+    
+    console.log("Selected video:", JSON.stringify(videoInfo, null, 2)); // Debug log
 
-    // Extract video info
-    const videoUrl = videoInfo.videoUrl || videoInfo.video || videoInfo.url;
-    const title = videoInfo.title || "No title";
-    const duration = videoInfo.duration || "Unknown";
-    const views = videoInfo.views || "N/A";
-    const uploader = videoInfo.uploader || videoInfo.author || "Unknown";
+    // Try all possible video URL fields
+    const possibleUrlFields = [
+      'videoUrl', 'video', 'url', 'link', 'mp4', 
+      'downloadUrl', 'download', 'src', 'source',
+      'file', 'content', 'path', 'play', 'playUrl'
+    ];
+    
+    let videoUrl = null;
+    for (const field of possibleUrlFields) {
+      if (videoInfo[field]) {
+        videoUrl = videoInfo[field];
+        console.log(`Found URL in field: ${field}`);
+        break;
+      }
+    }
+
+    // Check nested objects
+    if (!videoUrl && videoInfo.video_info) {
+      for (const field of possibleUrlFields) {
+        if (videoInfo.video_info[field]) {
+          videoUrl = videoInfo.video_info[field];
+          console.log(`Found URL in video_info.${field}`);
+          break;
+        }
+      }
+    }
 
     if (!videoUrl) {
       api.unsendMessage(waiting.messageID);
-      return api.sendMessage("❌ Video URL not found.", threadID, messageID);
+      console.log("Full video object for debugging:", JSON.stringify(videoInfo, null, 2));
+      return api.sendMessage("❌ Video URL not found in API response.", threadID, messageID);
     }
+
+    // Extract other info with fallbacks
+    const title = videoInfo.title || videoInfo.name || videoInfo.caption || "Untitled";
+    const duration = videoInfo.duration || videoInfo.length || "Unknown";
+    const views = videoInfo.views || videoInfo.view_count || videoInfo.play_count || "N/A";
+    const uploader = videoInfo.uploader || videoInfo.author || videoInfo.channel || videoInfo.username || "Unknown";
 
     // Update waiting message
     api.editMessage(`📥 Downloading: ${title.substring(0, 50)}...`, waiting.messageID);
@@ -70,14 +117,17 @@ module.exports.run = async function ({ api, event }) {
         timeout: 60000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
-          'Referer': 'https://betadash-api-swordslush-production.up.railway.app/'
+          'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8'
         }
       });
 
       fs.writeFileSync(videoPath, videoResponse.data);
       
-      // Get file size
+      // Check if file was downloaded properly
+      if (fs.statSync(videoPath).size === 0) {
+        throw new Error("Downloaded file is empty");
+      }
+
       const fileSizeMB = (fs.statSync(videoPath).size / (1024 * 1024)).toFixed(2);
 
       // Delete waiting message
@@ -98,7 +148,6 @@ module.exports.run = async function ({ api, event }) {
         threadID,
         (err) => {
           if (err) console.error("Send error:", err);
-          // Delete file after sending
           setTimeout(() => {
             try { fs.unlinkSync(videoPath); } catch (e) {}
           }, 60000);
@@ -109,7 +158,7 @@ module.exports.run = async function ({ api, event }) {
     } catch (downloadErr) {
       console.error("Download error:", downloadErr);
       api.unsendMessage(waiting.messageID);
-      api.sendMessage("❌ Failed to download video.", threadID, messageID);
+      api.sendMessage(`❌ Download failed: ${downloadErr.message}`, threadID, messageID);
     }
 
   } catch (err) {
