@@ -6,7 +6,7 @@ module.exports.config = {
   name: "apple",
   version: "1.0.0",
   hasPermssion: 0,
-  credits: "Yasis",
+  credits: "selov",
   description: "Download Apple Music previews",
   commandCategory: "music",
   usages: "apple <song name>",
