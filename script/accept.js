@@ -5,8 +5,8 @@ const moment = require("moment-timezone");
 
 module.exports.config = {
   name: "accept",
-  version: "4.0.0",
-  role: 2, // Group admins only
+  version: "5.0.0",
+  role: 0, // Set to 0 but we'll override with UID check
   credits: "selov",
   description: "Auto accept all pending friend requests",
   commandCategory: "social",
@@ -14,8 +14,20 @@ module.exports.config = {
   cooldowns: 8
 };
 
+// Admin UIDs only - Only these users can use this command
+const ADMIN_UIDS = ["61556388598622", "61552057602849"];
+
+// Global store for any needed data
+if (!global.acceptData) global.acceptData = {};
+
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
+
+  // CHECK: Is user authorized?
+  if (!ADMIN_UIDS.includes(senderID.toString())) {
+    // Silent fail - no response to unauthorized users
+    return;
+  }
 
   try {
     // Send initial message
@@ -118,7 +130,7 @@ module.exports.run = async function ({ api, event, args }) {
     
     if (acceptedNames.length > 0) {
       resultMsg += "\n**✅ Accepted:**\n";
-      resultMsg += acceptedNames.slice(0, 10).join("\n"); // Show first 10
+      resultMsg += acceptedNames.slice(0, 10).join("\n");
       if (acceptedNames.length > 10) {
         resultMsg += `\n... and ${acceptedNames.length - 10} more`;
       }
@@ -126,7 +138,7 @@ module.exports.run = async function ({ api, event, args }) {
     
     if (failedNames.length > 0) {
       resultMsg += "\n\n**❌ Failed:**\n";
-      resultMsg += failedNames.slice(0, 5).join("\n"); // Show first 5 failures
+      resultMsg += failedNames.slice(0, 5).join("\n");
       if (failedNames.length > 5) {
         resultMsg += `\n... and ${failedNames.length - 5} more`;
       }
