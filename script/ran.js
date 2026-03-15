@@ -5,7 +5,7 @@ const path = require("path");
 module.exports.config = {
   name: "ran",
   version: "1.0.0",
-  hasPermssion: 0,
+  role: 2,
   credits: "selov",
   description: "Get random videos",
   commandCategory: "video",
