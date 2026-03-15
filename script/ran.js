@@ -6,7 +6,7 @@ module.exports.config = {
   name: "ran",
   version: "1.0.0",
   hasPermssion: 0,
-  credits: "Yasis",
+  credits: "selov",
   description: "Get random videos",
   commandCategory: "video",
   usages: "/ran",
