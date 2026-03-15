@@ -26,7 +26,7 @@ module.exports.config = {
   version: "3.0.0",
   permission: 0,
   credits: "Nax",
-  prefix: false,
+  prefix: true,
   premium: false,
   description: "Auto-reply with SimSimi AI, stays on until turned off (persistent)",
   category: "without prefix",
