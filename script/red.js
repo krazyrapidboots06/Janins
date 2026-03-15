@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "red",
-  version: "5.0.0",
+  version: "2.0.0",
   hasPermssion: 0,
   credits: "Yasis",
   description: "Fetch a random video from the API",
@@ -19,31 +19,41 @@ module.exports.run = async function ({ api, event }) {
   try {
     const waiting = await api.sendMessage("🎬 Fetching a random video... please wait.", threadID, messageID);
 
-    // API endpoint
-    const apiUrl = "https://betadash-api-swordslush-production.up.railway.app/lootedpinay?page=1";
-    
-    const res = await axios.get(apiUrl, { timeout: 10000 });
+    // Fetch videos from API
+    const response = await axios.get("https://betadash-api-swordslush-production.up.railway.app/sulasok?page=1", {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
 
-    // Get videos from response
-    const videos = res.data.result || [];
-    
-    if (videos.length === 0) {
+    const data = response.data;
+
+    // Check if data exists and has results
+    if (!data || !data.results || data.results.length === 0) {
       api.unsendMessage(waiting.messageID);
       return api.sendMessage("❌ No videos found.", threadID, messageID);
     }
 
-    // Get random video
-    const randomVideo = videos[Math.floor(Math.random() * videos.length)];
-    
-    const videoUrl = randomVideo.videoUrl;
-    const title = randomVideo.title || "Untitled";
+    // Get random video from results array
+    const videos = data.results;
+    const randomIndex = Math.floor(Math.random() * videos.length);
+    const videoInfo = videos[randomIndex];
+
+    // Extract video info
+    const videoUrl = videoInfo.videoUrl || videoInfo.video || videoInfo.url;
+    const title = videoInfo.title || "No title";
+    const duration = videoInfo.duration || "Unknown";
+    const views = videoInfo.views || "N/A";
+    const uploader = videoInfo.uploader || videoInfo.author || "Unknown";
 
     if (!videoUrl) {
       api.unsendMessage(waiting.messageID);
       return api.sendMessage("❌ Video URL not found.", threadID, messageID);
     }
 
-    api.editMessage(`📥 Checking video size...`, waiting.messageID);
+    // Update waiting message
+    api.editMessage(`📥 Downloading: ${title.substring(0, 50)}...`, waiting.messageID);
 
     // Create cache directory
     const cacheDir = path.join(__dirname, "cache", "red");
@@ -51,107 +61,44 @@ module.exports.run = async function ({ api, event }) {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    // First, check the file size without downloading fully
-    try {
-      const headResponse = await axios.head(videoUrl, {
-        timeout: 10000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': 'https://pinayflix.top/'
-        }
-      });
-
-      const contentLength = headResponse.headers['content-length'];
-      
-      if (contentLength) {
-        const fileSizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
-        
-        // Facebook limit is around 25MB for videos
-        if (parseInt(contentLength) > 25 * 1024 * 1024) {
-          api.unsendMessage(waiting.messageID);
-          return api.sendMessage(
-            `❌ Video is too large (${fileSizeMB} MB). Facebook limit is 25MB.\nTry another video.`,
-            threadID,
-            messageID
-          );
-        }
-      }
-    } catch (headErr) {
-      console.log("Head request failed, proceeding with download anyway:", headErr.message);
-    }
-
-    api.editMessage(`📥 Downloading: ${title}...`, waiting.messageID);
-
-    // Download video with size limit
+    // Download video
     const videoPath = path.join(cacheDir, `red_${Date.now()}.mp4`);
     
     try {
-      const videoResp = await axios.get(videoUrl, { 
-        responseType: "stream",
+      const videoResponse = await axios.get(videoUrl, {
+        responseType: "arraybuffer",
         timeout: 60000,
-        maxContentLength: 30 * 1024 * 1024, // 30MB limit
         headers: {
-          'User-Agent': 'Mozilla/5.0',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
-          'Referer': 'https://pinayflix.top/'
+          'Referer': 'https://betadash-api-swordslush-production.up.railway.app/'
         }
       });
 
-      // Check content length from response headers
-      const contentLength = videoResp.headers['content-length'];
-      if (contentLength) {
-        const fileSizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
-        if (parseInt(contentLength) > 25 * 1024 * 1024) {
-          api.unsendMessage(waiting.messageID);
-          return api.sendMessage(
-            `❌ Video is too large (${fileSizeMB} MB). Facebook limit is 25MB.`,
-            threadID,
-            messageID
-          );
-        }
-      }
-
-      // Create write stream
-      const writer = fs.createWriteStream(videoPath);
-      videoResp.data.pipe(writer);
-
-      // Wait for download to complete
-      await new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-      });
-
-      // Check final file size
-      const stats = fs.statSync(videoPath);
-      const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+      fs.writeFileSync(videoPath, videoResponse.data);
       
-      if (stats.size > 25 * 1024 * 1024) {
-        fs.unlinkSync(videoPath);
-        api.unsendMessage(waiting.messageID);
-        return api.sendMessage(
-          `❌ Video is too large (${fileSizeMB} MB). Facebook limit is 25MB.`,
-          threadID,
-          messageID
-        );
-      }
+      // Get file size
+      const fileSizeMB = (fs.statSync(videoPath).size / (1024 * 1024)).toFixed(2);
 
+      // Delete waiting message
       api.unsendMessage(waiting.messageID);
 
-      // Send video
+      // Send video with info
       api.sendMessage(
         {
           body: `🎬 **RANDOM VIDEO**\n━━━━━━━━━━━━━━━━\n` +
                 `**Title:** ${title}\n` +
+                `**Duration:** ${duration}\n` +
+                `**Views:** ${views}\n` +
+                `**Uploader:** ${uploader}\n` +
                 `**Size:** ${fileSizeMB} MB\n` +
                 `━━━━━━━━━━━━━━━━`,
           attachment: fs.createReadStream(videoPath)
         },
         threadID,
         (err) => {
-          if (err) {
-            console.error("Send error:", err);
-            api.sendMessage("❌ Failed to send video. It might be too large.", threadID);
-          }
+          if (err) console.error("Send error:", err);
+          // Delete file after sending
           setTimeout(() => {
             try { fs.unlinkSync(videoPath); } catch (e) {}
           }, 60000);
@@ -161,18 +108,8 @@ module.exports.run = async function ({ api, event }) {
 
     } catch (downloadErr) {
       console.error("Download error:", downloadErr);
-      
-      // Check if it's a size limit error
-      if (downloadErr.message.includes('maxContentLength')) {
-        api.editMessage("❌ Video is too large (over 30MB). Try another video.", waiting.messageID);
-      } else {
-        api.editMessage("❌ Download failed. Try another video.", waiting.messageID);
-      }
-      
-      // Clean up if file was partially created
-      if (fs.existsSync(videoPath)) {
-        try { fs.unlinkSync(videoPath); } catch (e) {}
-      }
+      api.unsendMessage(waiting.messageID);
+      api.sendMessage("❌ Failed to download video.", threadID, messageID);
     }
 
   } catch (err) {
