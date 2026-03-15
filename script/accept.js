@@ -5,8 +5,8 @@ const moment = require("moment-timezone");
 
 module.exports.config = {
   name: "accept",
-  version: "2.2.0",
-  role: 1,
+  version: "2.4.0",
+  role: 2,
   credits: "selov",
   description: "Manage friend requests",
   commandCategory: "social",
@@ -18,7 +18,7 @@ module.exports.config = {
 if (!global.acceptReplyHandlers) global.acceptReplyHandlers = {};
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+  const { threadID, messageID, senderID, messageReply } = event; // Added messageReply here
 
   try {
     // Fetch friend requests from Facebook
@@ -72,7 +72,7 @@ module.exports.run = async function ({ api, event, args }) {
           delete global.acceptReplyHandlers[info.messageID];
         }, 2 * 60 * 1000)
       };
-    });
+    }, messageID);
 
   } catch (err) {
     console.error("Accept Command Error:", err);
@@ -86,7 +86,11 @@ module.exports.handleReply = async function ({ api, event }) {
 
   // CHECK 1: Is this a reply to a message?
   if (type !== "message_reply") {
-    return; // Silently ignore if not a reply
+    return api.sendMessage(
+      "❌ Please reply to the bot message with your choice.",
+      threadID,
+      messageID
+    );
   }
 
   // CHECK 2: Does the replied message exist in our handlers?
@@ -94,7 +98,11 @@ module.exports.handleReply = async function ({ api, event }) {
   const handlerData = global.acceptReplyHandlers[repliedMessageID];
 
   if (!handlerData) {
-    return; // Silently ignore if not our message
+    return api.sendMessage(
+      "❌ This is not a valid friend request list or it has expired.",
+      threadID,
+      messageID
+    );
   }
 
   // CHECK 3: Is the replier the same person who requested?
