@@ -5,16 +5,16 @@ const moment = require("moment-timezone");
 
 module.exports.config = {
   name: "accept",
-  version: "2.1.0",
-  selov: 1,
-  credits: "Selov",
+  version: "2.2.0",
+  role: 1,
+  credits: "selov",
   description: "Manage friend requests",
   commandCategory: "social",
   usages: "/accept - Show pending friend requests",
   cooldowns: 8
 };
 
-// Global store for reply handlers (use global to persist across commands)
+// Global store for reply handlers
 if (!global.acceptReplyHandlers) global.acceptReplyHandlers = {};
 
 module.exports.run = async function ({ api, event, args }) {
@@ -72,8 +72,6 @@ module.exports.run = async function ({ api, event, args }) {
           delete global.acceptReplyHandlers[info.messageID];
         }, 2 * 60 * 1000)
       };
-      
-      console.log("Reply handler stored for message:", info.messageID); // Debug log
     });
 
   } catch (err) {
@@ -84,38 +82,45 @@ module.exports.run = async function ({ api, event, args }) {
 
 // Handle replies to process accept/reject
 module.exports.handleReply = async function ({ api, event }) {
-  const { threadID, messageID, senderID, body } = event;
-  
-  // Check if this is a reply to our message
-  if (!event.messageReply) return;
-  
-  const replyToID = event.messageReply.messageID;
-  console.log("Reply detected to message:", replyToID); // Debug log
-  
-  // Get the stored handler data
-  const handlerData = global.acceptReplyHandlers[replyToID];
-  
+  const { threadID, messageID, senderID, type, messageReply, body } = event;
+
+  // CHECK 1: Is this a reply to a message?
+  if (type !== "message_reply") {
+    return; // Silently ignore if not a reply
+  }
+
+  // CHECK 2: Does the replied message exist in our handlers?
+  const repliedMessageID = messageReply.messageID;
+  const handlerData = global.acceptReplyHandlers[repliedMessageID];
+
   if (!handlerData) {
-    console.log("No handler found for message:", replyToID);
-    return;
+    return; // Silently ignore if not our message
   }
 
-  // Check if user is the one who requested
+  // CHECK 3: Is the replier the same person who requested?
   if (senderID !== handlerData.author) {
-    return api.sendMessage("❌ You cannot reply to someone else's friend request list.", threadID, messageID);
+    return api.sendMessage(
+      "❌ You cannot reply to someone else's friend request list.",
+      threadID,
+      messageID
+    );
   }
-
-  const args = body.trim().toLowerCase().split(/\s+/);
-  const { listRequest, messageID: replyMessageID } = handlerData;
 
   // Clear the auto-delete timeout
   clearTimeout(handlerData.unsendTimeout);
 
+  const args = body.trim().toLowerCase().split(/\s+/);
+  const { listRequest, messageID: replyMessageID } = handlerData;
+
   // Validate command format
   if (args.length < 2) {
     api.unsendMessage(replyMessageID);
-    delete global.acceptReplyHandlers[replyMessageID];
-    return api.sendMessage("❌ Invalid format. Use: add <number> or del <number>", threadID, messageID);
+    delete global.acceptReplyHandlers[repliedMessageID];
+    return api.sendMessage(
+      "❌ Invalid format. Use: add <number> or del <number>",
+      threadID,
+      messageID
+    );
   }
 
   // Prepare GraphQL form
@@ -139,14 +144,18 @@ module.exports.handleReply = async function ({ api, event }) {
     form.fb_api_req_friendly_name = "FriendingCometFriendRequestConfirmMutation";
     form.doc_id = "3147613905362928";
     actionType = "Accepted";
-  } else if (args[0] === "del") {
+  } else if (args[0] === "del" || args[0] === "delete" || args[0] === "reject") {
     form.fb_api_req_friendly_name = "FriendingCometFriendRequestDeleteMutation";
     form.doc_id = "4108254489275063";
     actionType = "Rejected";
   } else {
     api.unsendMessage(replyMessageID);
-    delete global.acceptReplyHandlers[replyMessageID];
-    return api.sendMessage("❌ Invalid command. Use: add or del", threadID, messageID);
+    delete global.acceptReplyHandlers[repliedMessageID];
+    return api.sendMessage(
+      "❌ Invalid command. Use: add or del",
+      threadID,
+      messageID
+    );
   }
 
   // Determine target request numbers
@@ -197,9 +206,19 @@ module.exports.handleReply = async function ({ api, event }) {
 
   if (promises.length === 0) {
     api.unsendMessage(replyMessageID);
-    delete global.acceptReplyHandlers[replyMessageID];
-    return api.sendMessage("❌ No valid requests to process.", threadID, messageID);
+    delete global.acceptReplyHandlers[repliedMessageID];
+    return api.sendMessage(
+      "❌ No valid requests to process.",
+      threadID,
+      messageID
+    );
   }
+
+  // Send processing message
+  const processingMsg = await api.sendMessage(
+    `⏳ Processing ${promises.length} request(s)...`,
+    threadID
+  );
 
   // Execute all requests
   const results = await Promise.allSettled(promises);
@@ -227,6 +246,9 @@ module.exports.handleReply = async function ({ api, event }) {
   if (success.length > 0) replyMsg += success.join("\n") + "\n";
   if (failed.length > 0) replyMsg += failed.join("\n");
 
+  // Delete processing message
+  api.unsendMessage(processingMsg.messageID);
+
   // Send results
   if (replyMsg) {
     api.sendMessage(replyMsg, threadID, messageID);
@@ -236,5 +258,5 @@ module.exports.handleReply = async function ({ api, event }) {
 
   // Delete the original request list
   api.unsendMessage(replyMessageID);
-  delete global.acceptReplyHandlers[replyMessageID];
+  delete global.acceptReplyHandlers[repliedMessageID];
 };
