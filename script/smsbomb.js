@@ -1,15 +1,20 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
+// Store last usage time for each phone number
+const phoneTimers = new Map();
+const COOLDOWN_MINUTES = 30;
+const COOLDOWN_MS = COOLDOWN_MINUTES * 60 * 1000;
+
 module.exports.config = {
   name: "smsbomb",
-  version: "5.0.0",
+  version: "6.0.0",
   role: 2,
   credits: "selov",
-  description: "SMS bombing tool for Philippine numbers",
+  description: "SMS bombing tool for Philippine numbers (30-min cooldown per number)",
   commandCategory: "utility",
   usages: "/smsbomb <phone> <amount>",
-  cooldowns: 1800
+  cooldowns: 0 // Global cooldown disabled, using per-phone timer instead
 };
 
 module.exports.run = async function ({ api, event, args }) {
@@ -38,6 +43,13 @@ module.exports.run = async function ({ api, event, args }) {
     const secret = "kumu_secret_2024";
     const data = `${timestamp}${randomStr}${phoneNumber}${secret}`;
     return crypto.createHash('sha256').update(data).digest('hex');
+  };
+
+  // Format remaining time
+  const formatRemainingTime = (ms) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes} minute${minutes !== 1 ? 's' : ''} and ${seconds} second${seconds !== 1 ? 's' : ''}`;
   };
 
   // Service functions (all 12 services)
@@ -316,13 +328,40 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     const formattedPhone = formatPhone(phone);
+    const fullPhoneNumber = `+63${formattedPhone}`;
+
+    // CHECK COOLDOWN FOR THIS PHONE NUMBER
+    const lastUsed = phoneTimers.get(fullPhoneNumber);
+    const now = Date.now();
+
+    if (lastUsed) {
+      const timeElapsed = now - lastUsed;
+      if (timeElapsed < COOLDOWN_MS) {
+        const remainingTime = COOLDOWN_MS - timeElapsed;
+        const formattedTime = formatRemainingTime(remainingTime);
+        
+        return api.sendMessage(
+          `⏳ **Cooldown Active**\n━━━━━━━━━━━━━━━━\n` +
+          `📞 **Phone:** ${fullPhoneNumber}\n` +
+          `⏱️ **Please wait:** ${formattedTime}\n` +
+          `━━━━━━━━━━━━━━━━\n` +
+          `You can use this number again after ${COOLDOWN_MINUTES} minutes.`,
+          threadID,
+          messageID
+        );
+      }
+    }
+
+    // Update last used time for this phone number
+    phoneTimers.set(fullPhoneNumber, now);
+
     const totalServices = services.length;
     const totalRequests = amount * totalServices;
 
     // Send initial message
     const waiting = await api.sendMessage(
       `📱 **SMS BOMB IN PROGRESS**\n━━━━━━━━━━━━━━━━\n` +
-      `📞 **Target:** +63${formattedPhone}\n` +
+      `📞 **Target:** ${fullPhoneNumber}\n` +
       `📊 **Batches:** ${amount}\n` +
       `⚡ **Total Requests:** ${totalRequests}\n` +
       `━━━━━━━━━━━━━━━━\n` +
@@ -363,20 +402,22 @@ module.exports.run = async function ({ api, event, args }) {
     // Calculate success rate
     const successRate = ((successCount / totalRequests) * 100).toFixed(1);
 
-    // Prepare result summary (show all services)
+    // Prepare result summary
     const resultSummary = results.join('\n');
 
-    // Final result message
+    // Final result message with cooldown info
     const resultMsg = 
       `📱 **SMS BOMB COMPLETE**\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `📞 **Target:** +63${formattedPhone}\n` +
+      `📞 **Target:** ${fullPhoneNumber}\n` +
       `📊 **Batches:** ${amount}\n` +
       `⚡ **Total Requests:** ${totalRequests}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `✅ **Successful:** ${successCount}\n` +
       `❌ **Failed:** ${failCount}\n` +
       `📈 **Success Rate:** ${successRate}%\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `⏱️ **Next attempt available in:** ${COOLDOWN_MINUTES} minutes\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `**Results:**\n${resultSummary}\n` +
       `━━━━━━━━━━━━━━━━━━`;
