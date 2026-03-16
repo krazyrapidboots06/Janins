@@ -14,7 +14,7 @@ module.exports.config = {
   description: "SMS bombing tool for Philippine numbers (30-min cooldown per number)",
   commandCategory: "utility",
   usages: "/smsbomb <phone> <amount>",
-  cooldowns: 0 // Global cooldown disabled, using per-phone timer instead
+  cooldowns: 1800 // Global cooldown disabled, using per-phone timer instead
 };
 
 module.exports.run = async function ({ api, event, args }) {
