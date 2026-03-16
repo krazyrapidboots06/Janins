@@ -5,7 +5,7 @@ const path = require("path");
 module.exports.config = {
   name: "red",
   version: "4.0.0",
-  role: 1,
+  role: 3,
   credits: "selov",
   description: "Get random videos from pinayot API",
   commandCategory: "video",
