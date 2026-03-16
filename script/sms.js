@@ -8,7 +8,7 @@ module.exports.config = {
   description: "Send SMS to Philippine numbers using oreo API",
   commandCategory: "utility",
   usages: "/sms <phone> <amount>",
-  cooldowns: 120
+  cooldowns: 1800
 };
 
 module.exports.run = async function ({ api, event, args }) {
