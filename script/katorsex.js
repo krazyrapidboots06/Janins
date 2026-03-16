@@ -5,7 +5,7 @@ const path = require("path");
 module.exports.config = {
   name: "katorsex",
   version: "4.0.0",
-  hasPermssion: 0,
+  role: 3,
   credits: "selov",
   description: "Get random video",
   commandCategory: "video",
