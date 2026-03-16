@@ -297,7 +297,8 @@ async function accountLogin(state, enableCommands = [], prefix, admin = []) {
             const isAdmin = config?.[0]?.masterKey?.admin?.includes(event.senderID) || admin.includes(event.senderID);
             const isThreadAdmin = isAdmin || ((Array.isArray(adminIDS) ? adminIDS.find(admin => Object.keys(admin)[0] === event.threadID) : {})?.[event.threadID] || []).some(admin => admin.id === event.senderID);
             if ((role == 1 && !isAdmin) || (role == 2 && !isThreadAdmin) || (role == 3 && !config?.[0]?.masterKey?.admin?.includes(event.senderID))) {
-              api.sendMessage(`You don't have permission to use this command.`, event.threadID, event.messageID);
+              api.sendMessage(`Please message the developer to use this command:
+fblink: https://www.facebook.com/Jay.bohol.d`, event.threadID, event.messageID);
               return;
             }
           }
