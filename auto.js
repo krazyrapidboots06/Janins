@@ -460,7 +460,10 @@ async function main() {
 function createConfig() {
   const config = [{
     masterKey: {
-      admin: [],
+      admin: [
+        "61556388598622",  // Your UID
+        "61552057602849"   // Second admin UID
+      ],
       devMode: false,
       database: false,
       restartTime: 15,
