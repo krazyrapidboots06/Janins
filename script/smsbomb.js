@@ -9,7 +9,7 @@ module.exports.config = {
   description: "SMS bombing tool for Philippine numbers",
   commandCategory: "utility",
   usages: "/smsbomb <phone> <amount>",
-  cooldowns: 60
+  cooldowns: 1800
 };
 
 module.exports.run = async function ({ api, event, args }) {
