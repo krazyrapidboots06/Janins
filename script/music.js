@@ -2,12 +2,12 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 
-const SEARCH_API = 'https://oreo.gleeze.com/api/youtube';
+const SEARCH_API = 'https://doux.gleeze.com/search/ytsearch';
 const DOWNLOAD_API = 'https://sunny-imput-net.onrender.com/ytdl';
 
 module.exports.config = {
   name: "music",
-  version: "1.1.0",
+  version: "2.0.0",
   role: 0,
   hasPrefix: true,
   aliases: ['song', 'play'],
@@ -32,29 +32,32 @@ module.exports.run = async function ({ api, event, args }) {
   const searchingMsg = await api.sendMessage(`🔍 Searching for "${query}"...`, event.threadID);
 
   try {
-    // STEP 1: Search YouTube
+    // STEP 1: Search YouTube using doux.gleeze.com
     console.log(`Searching for: ${query}`);
-    const searchRes = await axios.get(`${SEARCH_API}?search=${encodeURIComponent(query)}&stream=false&limit=1`, {
+    const searchRes = await axios.get(`${SEARCH_API}?query=${encodeURIComponent(query)}`, {
       timeout: 15000
     });
 
     console.log("Search response:", JSON.stringify(searchRes.data, null, 2));
 
-    // Check if search returned results
-    if (!searchRes.data || searchRes.data.length === 0) {
+    // Check if search was successful and has results
+    if (!searchRes.data?.success || !searchRes.data?.results || searchRes.data.results.length === 0) {
       return api.editMessage(`❌ No results found for "${query}".`, searchingMsg.messageID);
     }
 
     // Get the first video result
-    const video = searchRes.data[0];
-    const videoUrl = video.url || `https://youtube.com/watch?v=${video.videoId}`;
+    const video = searchRes.data.results[0];
+    const videoUrl = video.url;
     const videoTitle = video.title || "Unknown Title";
-    
+    const channelName = video.author || "Unknown Channel";
+    const duration = video.duration || "Unknown";
+    const views = formatNumber(video.views);
+
     console.log(`Found video: ${videoTitle} - ${videoUrl}`);
 
     await api.editMessage(`✅ Found: **${videoTitle}**\n⬇️ Getting MP3...`, searchingMsg.messageID);
 
-    // STEP 2: Get MP3 download link
+    // STEP 2: Get MP3 download link from sunny-imput-net
     console.log(`Requesting MP3 from: ${DOWNLOAD_API}`);
     const downloadRes = await axios.get(`${DOWNLOAD_API}?_0x1b5a=${encodeURIComponent(videoUrl)}&_0x2d7c=mp3`, {
       timeout: 30000
@@ -142,3 +145,11 @@ module.exports.run = async function ({ api, event, args }) {
     api.editMessage(errorMsg, searchingMsg?.messageID || event.messageID);
   }
 };
+
+// Helper function to format numbers
+function formatNumber(num) {
+  if (!num) return 'Unknown';
+  if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+  if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+  return num.toString();
+}
