@@ -7,6 +7,7 @@ module.exports.config = {
   version: "4.1.0",
   hasPermssion: 0,
   credits: "selov",
+  prefix: false,
   description: "AI with voice response that knows your name",
   commandCategory: "search",
   usages: "ai <ask a questions>",
