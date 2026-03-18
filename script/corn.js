@@ -7,20 +7,20 @@ let sentVideos = [];
 
 module.exports.config = {
   name: "corn",
-  version: "2.0.0",
+  version: "3.0.0",
   role: 3, // Admin only
   credits: "selov",
   description: "Get random videos (Admin only)",
   commandCategory: "danger",
   usages: "/corn",
   cooldowns: 5,
-  aliases: ["kda"]
+  aliases: ["kda", "corn2"]
 };
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
-  // Video links list
+  // Video links list (shortened for example - use full list from your original)
   const link = [
     "https://drive.google.com/uc?export=download&id=1-gJdG8bxmZLyOC7-6E4A5Hm95Q9gWIPO",
     "https://drive.google.com/uc?export=download&id=1-ryNR8j529EZyTCuMur9wmkFz4ahlv-f",
@@ -139,8 +139,10 @@ module.exports.run = async function ({ api, event, args }) {
   ];
 
   try {
-    // Send loading message
-    const loadingMsg = await api.sendMessage("", threadID);
+    // Validate link array
+    if (!link || link.length === 0) {
+      throw new Error("No video links available");
+    }
 
     // Get available videos (not sent yet)
     const availableVideos = link.filter(video => !sentVideos.includes(video));
@@ -150,12 +152,16 @@ module.exports.run = async function ({ api, event, args }) {
       sentVideos = [];
     }
 
-    // Select random video from available ones
-    const randomIndex = Math.floor(Math.random() * (availableVideos.length || link.length));
-    const randomVideo = availableVideos.length > 0 ? availableVideos[randomIndex] : link[randomIndex];
+    // Select random video
+    const videoPool = availableVideos.length > 0 ? availableVideos : link;
+    const randomIndex = Math.floor(Math.random() * videoPool.length);
+    const randomVideo = videoPool[randomIndex];
 
     // Track sent video
     sentVideos.push(randomVideo);
+
+    // Show typing indicator
+    api.sendTypingIndicator(threadID, true);
 
     // Create cache directory
     const cacheDir = path.join(__dirname, 'cache', 'corn');
@@ -182,16 +188,16 @@ module.exports.run = async function ({ api, event, args }) {
       writer.on('error', reject);
     });
 
+    // Check if file was downloaded
+    const stats = await fs.stat(filePath);
+    if (stats.size === 0) {
+      throw new Error("Downloaded file is empty");
+    }
+
     // Send video
     await api.sendMessage({
-      body: "",
       attachment: fs.createReadStream(filePath)
     }, threadID);
-
-    // Delete loading message after 5 seconds
-    setTimeout(() => {
-      api.unsendMessage(loadingMsg.messageID);
-    }, 5000);
 
     // Clean up file after sending (delete after 1 minute)
     setTimeout(async () => {
@@ -206,6 +212,8 @@ module.exports.run = async function ({ api, event, args }) {
 
   } catch (err) {
     console.error('Corn command error:', err);
-    api.sendMessage(`❌ Error: ${err.message}`, threadID, messageID);
+    // Send meaningful error message
+    const errorMsg = err.message || "An unknown error occurred";
+    api.sendMessage(`❌ Error: ${errorMsg}`, threadID, messageID);
   }
 };
