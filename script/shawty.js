@@ -23,7 +23,7 @@ module.exports.config = {
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID } = event;
-  const waitingMsg = await api.sendMessage("🎬 Fetching random TikTok video...", threadID);
+  const waitingMsg = await api.sendMessage("", threadID);
 
   let lastError = null;
 
@@ -71,7 +71,7 @@ async function processVideo(data, api, event, waitingMsg, messageID) {
     }
 
     const meta = data.meta || {};
-    await api.editMessage(`📥 Downloading video...`, waitingMsg.messageID);
+    await api.editMessage(``, waitingMsg.messageID);
 
     const cacheDir = path.join(__dirname, 'cache', 'shawty');
     await fs.ensureDir(cacheDir);
@@ -96,7 +96,7 @@ async function processVideo(data, api, event, waitingMsg, messageID) {
     await api.unsendMessage(waitingMsg.messageID);
 
     const infoMsg = 
-      `🎬 **TikTok Video**\n` +
+      `\n` +
       `━━━━━━━━━━━━━━━━\n` +
       `👤 **Author:** ${meta.author?.nickname || 'Unknown'}\n` +
       `📝 **Title:** ${meta.title || 'Untitled'}\n` +
