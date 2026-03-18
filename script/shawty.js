@@ -23,8 +23,7 @@ module.exports.config = {
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID } = event;
-  const waitingMsg = await api.sendMessage("", threadID);
-
+  
   let lastError = null;
 
   // Try each endpoint until one works
@@ -71,8 +70,7 @@ async function processVideo(data, api, event, waitingMsg, messageID) {
     }
 
     const meta = data.meta || {};
-    await api.editMessage(``, waitingMsg.messageID);
-
+    
     const cacheDir = path.join(__dirname, 'cache', 'shawty');
     await fs.ensureDir(cacheDir);
     
@@ -93,8 +91,7 @@ async function processVideo(data, api, event, waitingMsg, messageID) {
       writer.on('error', reject);
     });
 
-    await api.unsendMessage(waitingMsg.messageID);
-
+    
     const infoMsg = 
       `\n` +
       `━━━━━━━━━━━━━━━━\n` +
