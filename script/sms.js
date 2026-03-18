@@ -22,8 +22,8 @@ module.exports.run = async function ({ api, event, args }) {
     // Validate phone
     if (!phone) {
       return api.sendMessage(
-        "❌ **Usage:** /sms <phone> <amount>\n" +
-        "📱 **Examples:**\n" +
+        "❌ Usage: /sms <phone> <amount>\n" +
+        "📱 Examples:\n" +
         "• /sms 09123456789 5\n" +
         "• /sms +639123456789 3\n" +
         "• /sms 639123456789 2",
@@ -65,10 +65,10 @@ module.exports.run = async function ({ api, event, args }) {
 
     // Send initial message
     const waiting = await api.sendMessage(
-      `📱 **SMS REQUEST**\n━━━━━━━━━━━━━━━━\n` +
-      `📞 **Phone:** ${phone}\n` +
-      `🔢 **Amount:** ${amount}\n` +
-      `⏳ **Status:** Sending...`,
+      `📱 SMS REQUEST\n━━━━━━━━━━━━━━━━\n` +
+      `📞 Phone: ${phone}\n` +
+      `🔢 Amount: ${amount}\n` +
+      `⏳ Status: Sending...`,
       threadID
     );
 
@@ -83,12 +83,12 @@ module.exports.run = async function ({ api, event, args }) {
       
       // Update with success message
       await api.editMessage(
-        `📱 **SMS COMPLETE**\n━━━━━━━━━━━━━━━━\n` +
-        `✅ **Success!**\n` +
+        `📱 SMS COMPLETE\n━━━━━━━━━━━━━━━━\n` +
+        `✅ Success!\n` +
         `━━━━━━━━━━━━━━━━\n` +
-        `📞 **Phone:** ${phone}\n` +
-        `🔢 **Amount:** ${amount}\n` +
-        `📊 **Status:** ${status}\n` +
+        `📞 Phone: ${phone}\n` +
+        `🔢 Amount: ${amount}\n` +
+        `📊 Status: ${status}\n` +
         `━━━━━━━━━━━━━━━━`,
         waiting.messageID
       );
@@ -98,12 +98,12 @@ module.exports.run = async function ({ api, event, args }) {
       console.error("API Error:", error.message);
       
       await api.editMessage(
-        `📱 **SMS REQUEST**\n━━━━━━━━━━━━━━━━\n` +
-        `⚠️ **Request Processed**\n` +
+        `📱 SMS REQUEST\n━━━━━━━━━━━━━━━━\n` +
+        `⚠️ Request Processed\n` +
         `━━━━━━━━━━━━━━━━\n` +
-        `📞 **Phone:** ${phone}\n` +
-        `🔢 **Amount:** ${amount}\n` +
-        `📊 **Status:** Request sent to API\n` +
+        `📞 Phone: ${phone}\n` +
+        `🔢 Amount: ${amount}\n` +
+        `📊 Status: Request sent to API\n` +
         `━━━━━━━━━━━━━━━━\n` +
         `💡 Note: API may be processing in background`,
         waiting.messageID
