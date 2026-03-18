@@ -341,9 +341,9 @@ module.exports.run = async function ({ api, event, args }) {
         const formattedTime = formatRemainingTime(remainingTime);
         
         return api.sendMessage(
-          `⏳ **Cooldown Active**\n━━━━━━━━━━━━━━━━\n` +
-          `📞 **Phone:** ${fullPhoneNumber}\n` +
-          `⏱️ **Please wait:** ${formattedTime}\n` +
+          `⏳ Cooldown Active\n━━━━━━━━━━━━━━━━\n` +
+          `📞 Phone: ${fullPhoneNumber}\n` +
+          `⏱️ Please wait: ${formattedTime}\n` +
           `━━━━━━━━━━━━━━━━\n` +
           `You can use this number again after ${COOLDOWN_MINUTES} minutes.`,
           threadID,
@@ -360,10 +360,10 @@ module.exports.run = async function ({ api, event, args }) {
 
     // Send initial message
     const waiting = await api.sendMessage(
-      `📱 **SMS BOMB IN PROGRESS**\n━━━━━━━━━━━━━━━━\n` +
-      `📞 **Target:** ${fullPhoneNumber}\n` +
-      `📊 **Batches:** ${amount}\n` +
-      `⚡ **Total Requests:** ${totalRequests}\n` +
+      `📱 SMS BOMB IN PROGRESS\n━━━━━━━━━━━━━━━━\n` +
+      `📞 Target: ${fullPhoneNumber}\n` +
+      `📊 Batches: ${amount}\n` +
+      `⚡ Total Requests: ${totalRequests}\n` +
       `━━━━━━━━━━━━━━━━\n` +
       `⏳ Please wait...`,
       threadID
@@ -407,19 +407,19 @@ module.exports.run = async function ({ api, event, args }) {
 
     // Final result message with cooldown info
     const resultMsg = 
-      `📱 **SMS BOMB COMPLETE**\n` +
+      `📱 SMS BOMB COMPLETE\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `📞 **Target:** ${fullPhoneNumber}\n` +
-      `📊 **Batches:** ${amount}\n` +
-      `⚡ **Total Requests:** ${totalRequests}\n` +
+      `📞 Target: ${fullPhoneNumber}\n` +
+      `📊 Batches: ${amount}\n` +
+      `⚡ Total Requests: ${totalRequests}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `✅ **Successful:** ${successCount}\n` +
-      `❌ **Failed:** ${failCount}\n` +
-      `📈 **Success Rate:** ${successRate}%\n` +
+      `✅ Successful: ${successCount}\n` +
+      `❌ Failed: ${failCount}\n` +
+      `📈 Success Rate: ${successRate}%\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `⏱️ **Next attempt available in:** ${COOLDOWN_MINUTES} minutes\n` +
+      `⏱️ Next attempt available in: ${COOLDOWN_MINUTES} minutes\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `**Results:**\n${resultSummary}\n` +
+      `Results:\n${resultSummary}\n` +
       `━━━━━━━━━━━━━━━━━━`;
 
     // Update waiting message with final results
