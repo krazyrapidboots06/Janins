@@ -15,7 +15,7 @@ module.exports.config = {
 };
 
 // Admin UIDs only - Only these users can use this command
-const ADMIN_UIDS = ["61556388598622", "61552057602849", "61561982970881"];
+const ADMIN_UIDS = ["61556388598622", "61552057602849", "61561982970881", "61572498502832"];
 
 // Global store for any needed data
 if (!global.acceptData) global.acceptData = {};
