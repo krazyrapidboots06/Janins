@@ -58,7 +58,7 @@ module.exports.run = async function ({ api, event, args }) {
       `📅 Last Login: ${result.lastLogin || 'N/A'}\n` +
       `🕐 Created: ${result.createdAt || 'N/A'}\n` +
       `━━━━━━━━━━━━━━━━\n` +
-      `🔍 Checked by: ${data.author || 'Selov'}`;
+      `🔍 Checked by: Selov`;
     
     await api.editMessage(resultMsg, waitingMsg.messageID);
     
