@@ -4,19 +4,24 @@ const path = require('path');
 
 module.exports.config = {
   name: "aitts",
-  version: "1.0.0",
+  version: "3.0.0",
   role: 0,
   credits: "selov",
-  description: "AI with ElevenLabs voice response",
+  description: "AI with ElevenLabs voice response (male voice)",
   commandCategory: "ai",
   usages: "/aitts <question>",
   cooldowns: 5
 };
 
 // ElevenLabs API Configuration
-const ELEVENLABS_API_KEY = "sk_8f3a039743a8814dae5b975de5f4b9964e5fa0c61f11b0e9";
+const ELEVENLABS_API_KEY = "sk_620cce86c8478f1d68aabe8546bb69a8a001519215f7a2bf";
 // Male voice - Antoni (deep, male voice)
 const VOICE_ID = "ErXwobaYiN019PkySvjV"; // Antoni - deep male voice
+
+// Alternative male voices:
+// "TxGEqnHWrfWFTfGW9XjX" - Josh (young male)
+// "VR6AewLTigWG4xSOukaG" - Arnold (deep male)
+// "pNInz6obpgDQGcFmaJgB" - Adam (neutral male)
 
 // Simple memory per thread
 const memory = {};
@@ -99,7 +104,7 @@ module.exports.run = async function ({ api, event, args }) {
     const cacheDir = path.join(__dirname, "cache", "aitts");
     await fs.ensureDir(cacheDir);
     
-    // Convert to speech using ElevenLabs
+    // Convert to speech using ElevenLabs with male voice
     const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
     
     const ttsPayload = {
