@@ -38,7 +38,7 @@ const API_CONFIG = {
 
 module.exports.config = {
   name: "santa",
-  version: "2.0.0",
+  version: "3.0.0",
   role: 0,
   credits: "selov",
   description: "Santa AI voice response (TTS audio only)",
@@ -96,25 +96,27 @@ module.exports.run = async function ({ api, event, args }) {
     // Show typing indicator
     api.sendTypingIndicator(threadID, true);
     
-    // Get AI response from ChatGPT API
+    // Get AI response using Vern API
     const enhancedPrompt = `${SANTA_PERSONA}\n\nThe user's name is ${firstName} (full name: ${senderName}). Please address them by their name in your response naturally. Keep your response warm, cheerful, and festive. Question: ${prompt}`;
     
-    const aiUrl = `https://deku-rest-api-spring.onrender.com/chatgpt?prompt=${encodeURIComponent(enhancedPrompt)}`;
-    const aiResponse = await axios.get(aiUrl, { timeout: 15000 });
+    const aiUrl = `https://vern-rest-api.vercel.app/api/chatgpt4?prompt=${encodeURIComponent(enhancedPrompt)}`;
+    const aiResponse = await axios.get(aiUrl, { timeout: 20000 });
     
     let replyText = "Ho ho ho! I'm sorry, I couldn't process that request.";
     
+    // Parse different response formats
     if (aiResponse.data) {
-      if (aiResponse.data.response) replyText = aiResponse.data.response;
+      if (aiResponse.data.result) replyText = aiResponse.data.result;
+      else if (aiResponse.data.response) replyText = aiResponse.data.response;
       else if (aiResponse.data.message) replyText = aiResponse.data.message;
-      else if (aiResponse.data.result) replyText = aiResponse.data.result;
       else if (aiResponse.data.answer) replyText = aiResponse.data.answer;
+      else if (aiResponse.data.content) replyText = aiResponse.data.content;
       else if (typeof aiResponse.data === 'string') replyText = aiResponse.data;
     }
     
     // Ensure Santa-style response
     if (!replyText.includes("Ho ho ho") && !replyText.includes("ho ho ho")) {
-      if (Math.random() > 0.7) {
+      if (Math.random() > 0.6) {
         replyText = "Ho ho ho! " + replyText;
       }
     }
