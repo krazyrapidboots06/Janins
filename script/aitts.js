@@ -14,13 +14,9 @@ module.exports.config = {
 };
 
 // ElevenLabs API Configuration
-const ELEVENLABS_API_KEY = "sk_8f3a039743a8814dae5b975de5f4b9964e5fa0c61f11b0e9"; // You need to get this from elevenlabs.io
-const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel voice (female) - change to male voice if desired
-
-// Alternative male voices for ElevenLabs:
-// "ErXwobaYiN019PkySvjV" - Antoni (male)
-// "TxGEqnHWrfWFTfGW9XjX" - Josh (male)
-// "VR6AewLTigWG4xSOukaG" - Arnold (male)
+const ELEVENLABS_API_KEY = "sk_8f3a039743a8814dae5b975de5f4b9964e5fa0c61f11b0e9";
+// Male voice - Antoni (deep, male voice)
+const VOICE_ID = "ErXwobaYiN019PkySvjV"; // Antoni - deep male voice
 
 // Simple memory per thread
 const memory = {};
@@ -111,7 +107,7 @@ module.exports.run = async function ({ api, event, args }) {
       model_id: "eleven_monolingual_v1",
       voice_settings: {
         stability: 0.5,
-        similarity_boost: 0.5
+        similarity_boost: 0.75
       }
     };
     
