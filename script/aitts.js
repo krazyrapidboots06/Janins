@@ -3,13 +3,13 @@ const fs = require('fs-extra');
 const path = require('path');
 
 module.exports.config = {
-  name: "selov",
+  name: "aitts",
   version: "1.0.0",
   role: 0,
   credits: "selov",
   description: "AI with ElevenLabs voice response",
   commandCategory: "ai",
-  usages: "/selov <question>",
+  usages: "/aitts <question>",
   cooldowns: 5
 };
 
@@ -32,12 +32,12 @@ module.exports.run = async function ({ api, event, args }) {
   
   if (!prompt) {
     return api.sendMessage(
-      `🔊 AI TTS COMMAND\n━━━━━━━━━━━━━━━━\n` +
+      `🔊 **AI TTS COMMAND**\n━━━━━━━━━━━━━━━━\n` +
       `Usage: /aitts <question>\n\n` +
       `Examples:\n` +
-      `/selov What is the meaning of life?\n` +
-      `/selov Tell me a joke\n` +
-      `/selov How are you today?`,
+      `/aitts What is the meaning of life?\n` +
+      `/aitts Tell me a joke\n` +
+      `/aitts How are you today?`,
       threadID,
       messageID
     );
