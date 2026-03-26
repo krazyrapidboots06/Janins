@@ -78,7 +78,7 @@ function getRandomVerse(category) {
 
 // Helper: Format message
 function formatMessage(verseData, categoryName) {
-  return `📖 ${categoryName.toUpperCase()}\n━━━━━━━━━━━━━━━━\n📌 **${verseData.verse}**\n\n"${verseData.text}"\n━━━━━━━━━━━━━━━━\n🙏 May this word bless your day!`;
+  return `📖 ${categoryName.toUpperCase()}\n━━━━━━━━━━━━━━━━\n📌 ${verseData.verse}\n\n"${verseData.text}"\n━━━━━━━━━━━━━━━━\n🙏 May this word bless your day!`;
 }
 
 // Schedule function for a thread
@@ -91,7 +91,7 @@ function scheduleMessages(api, threadID) {
   if (morningDelay < 0) morningDelay += 24 * 60 * 60 * 1000;
   
   // Afternoon: 12:30 PM
-  const afternoonTime = moment.tz(tz).set({ hour: 12, minute: 15, second: 0 });
+  const afternoonTime = moment.tz(tz).set({ hour: 12, minute: 25, second: 0 });
   let afternoonDelay = afternoonTime.diff(moment.tz(tz));
   if (afternoonDelay < 0) afternoonDelay += 24 * 60 * 60 * 1000;
   
@@ -180,7 +180,7 @@ module.exports.handleEvent = async function ({ api, event }) {
         try {
           const tz = 'Asia/Manila';
           const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-          const afternoon = moment.tz(tz).set({ hour: 12, minute: 15 }).format('hh:mm A');
+          const afternoon = moment.tz(tz).set({ hour: 12, minute: 25 }).format('hh:mm A');
           const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
           
           await api.sendMessage(
@@ -221,7 +221,7 @@ module.exports.run = async function ({ api, event, args }) {
       
       const tz = 'Asia/Manila';
       const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-      const afternoon = moment.tz(tz).set({ hour: 12, minute: 15 }).format('hh:mm A');
+      const afternoon = moment.tz(tz).set({ hour: 12, minute: 25 }).format('hh:mm A');
       const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
       
       return api.sendMessage(
@@ -247,7 +247,7 @@ module.exports.run = async function ({ api, event, args }) {
       if (schedules[threadID]?.active) {
         const tz = 'Asia/Manila';
         const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-        const afternoon = moment.tz(tz).set({ hour: 12, minute: 15 }).format('hh:mm A');
+        const afternoon = moment.tz(tz).set({ hour: 12, minute: 25 }).format('hh:mm A');
         const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
         
         return api.sendMessage(
