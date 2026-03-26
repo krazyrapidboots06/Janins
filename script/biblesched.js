@@ -123,7 +123,7 @@ function scheduleGlobalMessages(api) {
   if (morningDelay < 0) morningDelay += 24 * 60 * 60 * 1000;
   
   // Afternoon: 12:15 PM
-  const afternoonTime = moment.tz(tz).set({ hour: 12, minute: 55, second: 0 });
+  const afternoonTime = moment.tz(tz).set({ hour: 13, minute: 10, second: 0 });
   let afternoonDelay = afternoonTime.diff(moment.tz(tz));
   if (afternoonDelay < 0) afternoonDelay += 24 * 60 * 60 * 1000;
   
@@ -206,7 +206,7 @@ module.exports.handleEvent = async function ({ api, event }) {
           try {
             const tz = 'Asia/Manila';
             const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-            const afternoon = moment.tz(tz).set({ hour: 12, minute: 55 }).format('hh:mm A');
+            const afternoon = moment.tz(tz).set({ hour: 13, minute: 10 }).format('hh:mm A');
             const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
             
             await api.sendMessage(
@@ -253,7 +253,7 @@ module.exports.run = async function ({ api, event, args }) {
       
       const tz = 'Asia/Manila';
       const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-      const afternoon = moment.tz(tz).set({ hour: 12, minute: 55 }).format('hh:mm A');
+      const afternoon = moment.tz(tz).set({ hour: 13, minute: 10 }).format('hh:mm A');
       const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
       
       return api.sendMessage(
@@ -279,7 +279,7 @@ module.exports.run = async function ({ api, event, args }) {
     } else if (command === "status") {
       const tz = 'Asia/Manila';
       const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-      const afternoon = moment.tz(tz).set({ hour: 12, minute: 55 }).format('hh:mm A');
+      const afternoon = moment.tz(tz).set({ hour: 13, minute: 10 }).format('hh:mm A');
       const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
       
       return api.sendMessage(
@@ -304,7 +304,7 @@ module.exports.run = async function ({ api, event, args }) {
         `• /biblesched status - Check current status\n\n` +
         `Schedule (Philippines Time):*\n` +
         `🌅 6:00 AM - Humility\n` +
-        `☀️ 12:15 PM - Lust\n` +
+        `☀️ 1:10 PM - Lust\n` +
         `🌙 6:00 PM - Mark 6:66\n\n` +
         `⚠️ When activated, verses are sent to ALL groups where bot is present!`,
         threadID,
