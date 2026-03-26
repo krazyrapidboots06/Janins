@@ -3,17 +3,25 @@ const moment = require('moment-timezone');
 
 module.exports.config = {
   name: "biblesched",
-  version: "3.0.0",
+  version: "4.0.0",
   role: 2, // Admin only
   credits: "selov",
-  description: "Auto Bible verses for ALL groups (humility, lust, Mark 6:66)",
+  description: "Send Bible verses to ALL groups (humility, lust, Mark 6:66)",
   commandCategory: "religion",
   usages: "/biblesched on/off/status",
   cooldowns: 5
 };
 
-// Store active schedules per thread
-const schedules = {};
+// Store active schedule globally (for ALL groups)
+let globalSchedule = {
+  active: false,
+  morningTimer: null,
+  afternoonTimer: null,
+  eveningTimer: null
+};
+
+// Store all thread IDs where bot is present
+let allThreads = new Set();
 
 // Bible verses database
 const bibleVerses = {
@@ -81,17 +89,41 @@ function formatMessage(verseData, categoryName) {
   return `📖 ${categoryName.toUpperCase()}\n━━━━━━━━━━━━━━━━\n📌 ${verseData.verse}\n\n"${verseData.text}"\n━━━━━━━━━━━━━━━━\n🙏 May this word bless your day!`;
 }
 
-// Schedule function for a thread
-function scheduleMessages(api, threadID) {
+// Send message to ALL groups
+async function sendToAllGroups(api, message) {
+  for (const threadID of allThreads) {
+    try {
+      await api.sendMessage(message, threadID);
+      console.log(`Sent to group: ${threadID}`);
+    } catch (err) {
+      console.error(`Failed to send to ${threadID}:`, err.message);
+    }
+  }
+}
+
+// Get all threads where bot is present
+async function updateAllThreads(api) {
+  // This is a limitation - Facebook API doesn't have a direct "get all threads" method
+  // We'll rely on the handleEvent to track threads
+  console.log(`Currently tracking ${allThreads.size} threads`);
+}
+
+// Schedule the messages for ALL groups
+function scheduleGlobalMessages(api) {
   const tz = 'Asia/Manila';
+  
+  // Clear existing timers
+  if (globalSchedule.morningTimer) clearTimeout(globalSchedule.morningTimer);
+  if (globalSchedule.afternoonTimer) clearTimeout(globalSchedule.afternoonTimer);
+  if (globalSchedule.eveningTimer) clearTimeout(globalSchedule.eveningTimer);
   
   // Morning: 6:00 AM
   const morningTime = moment.tz(tz).set({ hour: 6, minute: 0, second: 0 });
   let morningDelay = morningTime.diff(moment.tz(tz));
   if (morningDelay < 0) morningDelay += 24 * 60 * 60 * 1000;
   
-  // Afternoon: 12:30 PM
-  const afternoonTime = moment.tz(tz).set({ hour: 12, minute: 38, second: 0 });
+  // Afternoon: 12:15 PM
+  const afternoonTime = moment.tz(tz).set({ hour: 12, minute: 55, second: 0 });
   let afternoonDelay = afternoonTime.diff(moment.tz(tz));
   if (afternoonDelay < 0) afternoonDelay += 24 * 60 * 60 * 1000;
   
@@ -100,102 +132,97 @@ function scheduleMessages(api, threadID) {
   let eveningDelay = eveningTime.diff(moment.tz(tz));
   if (eveningDelay < 0) eveningDelay += 24 * 60 * 60 * 1000;
   
-  // Clear existing schedules
-  if (schedules[threadID]) {
-    if (schedules[threadID].morning) clearTimeout(schedules[threadID].morning);
-    if (schedules[threadID].afternoon) clearTimeout(schedules[threadID].afternoon);
-    if (schedules[threadID].evening) clearTimeout(schedules[threadID].evening);
-  }
-  
   // Morning schedule
-  const morningSchedule = setTimeout(async () => {
+  globalSchedule.morningTimer = setTimeout(async () => {
     try {
       const verse = getRandomVerse('humility');
       const message = formatMessage(verse, 'Humility');
-      await api.sendMessage(message, threadID);
+      await sendToAllGroups(api, message);
       // Reschedule for next day
-      scheduleMessages(api, threadID);
+      scheduleGlobalMessages(api);
     } catch (err) {
-      console.error("Morning message error for thread", threadID, err);
+      console.error("Morning message error:", err);
     }
   }, morningDelay);
   
   // Afternoon schedule
-  const afternoonSchedule = setTimeout(async () => {
+  globalSchedule.afternoonTimer = setTimeout(async () => {
     try {
       const verse = getRandomVerse('lust');
       const message = formatMessage(verse, 'Lust');
-      await api.sendMessage(message, threadID);
+      await sendToAllGroups(api, message);
     } catch (err) {
-      console.error("Afternoon message error for thread", threadID, err);
+      console.error("Afternoon message error:", err);
     }
   }, afternoonDelay);
   
   // Evening schedule (Mark 6:66)
-  const eveningSchedule = setTimeout(async () => {
+  globalSchedule.eveningTimer = setTimeout(async () => {
     try {
       const verse = bibleVerses.mark[0];
       const message = formatMessage(verse, 'Mark 6:66');
-      await api.sendMessage(message, threadID);
+      await sendToAllGroups(api, message);
     } catch (err) {
-      console.error("Evening message error for thread", threadID, err);
+      console.error("Evening message error:", err);
     }
   }, eveningDelay);
   
-  // Store schedules
-  schedules[threadID] = {
-    morning: morningSchedule,
-    afternoon: afternoonSchedule,
-    evening: eveningSchedule,
-    active: true
-  };
+  console.log("Global schedule activated");
 }
 
-// Cancel all schedules for a thread
-function cancelSchedules(threadID) {
-  if (schedules[threadID]) {
-    if (schedules[threadID].morning) clearTimeout(schedules[threadID].morning);
-    if (schedules[threadID].afternoon) clearTimeout(schedules[threadID].afternoon);
-    if (schedules[threadID].evening) clearTimeout(schedules[threadID].evening);
-    delete schedules[threadID];
-  }
+// Cancel global schedule
+function cancelGlobalSchedule() {
+  if (globalSchedule.morningTimer) clearTimeout(globalSchedule.morningTimer);
+  if (globalSchedule.afternoonTimer) clearTimeout(globalSchedule.afternoonTimer);
+  if (globalSchedule.eveningTimer) clearTimeout(globalSchedule.eveningTimer);
+  globalSchedule.active = false;
+  console.log("Global schedule deactivated");
 }
 
-// Auto-activate for ALL groups when bot joins
+// Track threads when bot receives messages or joins groups
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, logMessageType } = event;
   
-  // When bot joins a new group, auto-activate schedule
+  // Add thread to set when bot receives a message
+  if (event.isGroup && threadID) {
+    allThreads.add(threadID);
+    console.log(`Added thread: ${threadID} (Total: ${allThreads.size})`);
+  }
+  
+  // When bot joins a new group
   if (logMessageType === "log:subscribe") {
     const addedParticipants = event.logMessageData?.addedParticipants || [];
     const botID = api.getCurrentUserID();
     
     const botAdded = addedParticipants.some(p => p.userFbId === botID);
     
-    if (botAdded && !schedules[threadID]?.active) {
-      console.log(`Bot added to group ${threadID}, activating Bible schedule...`);
-      scheduleMessages(api, threadID);
+    if (botAdded) {
+      allThreads.add(threadID);
+      console.log(`Bot added to group ${threadID}, added to tracking (Total: ${allThreads.size})`);
       
-      setTimeout(async () => {
-        try {
-          const tz = 'Asia/Manila';
-          const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-          const afternoon = moment.tz(tz).set({ hour: 12, minute: 38 }).format('hh:mm A');
-          const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
-          
-          await api.sendMessage(
-            `📖 Bible Schedule Activated\n━━━━━━━━━━━━━━━━\n` +
-            `🌅 Morning (${morning}): Humility\n` +
-            `☀️ Afternoon (${afternoon}): Lust\n` +
-            `🌙 Evening (${evening}): Mark 6:66\n` +
-            `━━━━━━━━━━━━━━━━\n` +
-            `Daily Bible verses will be sent at these times.`,
-            threadID
-          );
-        } catch (err) {
-          console.error("Welcome message error:", err);
-        }
-      }, 5000);
+      // If schedule is active, send welcome message
+      if (globalSchedule.active) {
+        setTimeout(async () => {
+          try {
+            const tz = 'Asia/Manila';
+            const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
+            const afternoon = moment.tz(tz).set({ hour: 12, minute: 55 }).format('hh:mm A');
+            const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
+            
+            await api.sendMessage(
+              `📖 Bible Schedule Active\n━━━━━━━━━━━━━━━━\n` +
+              `🌅 Morning (${morning}): Humility\n` +
+              `☀️ Afternoon (${afternoon}): Lust\n` +
+              `🌙 Evening (${evening}): Mark 6:66\n` +
+              `━━━━━━━━━━━━━━━━\n` +
+              `Daily Bible verses will be sent to ALL groups.`,
+              threadID
+            );
+          } catch (err) {
+            console.error("Welcome message error:", err);
+          }
+        }, 3000);
+      }
     }
   }
 };
@@ -213,74 +240,73 @@ module.exports.run = async function ({ api, event, args }) {
     }
     
     if (command === "on") {
-      if (schedules[threadID]?.active) {
-        return api.sendMessage("✅ Bible schedule is already active in this group.", threadID, messageID);
+      if (globalSchedule.active) {
+        return api.sendMessage("✅ Bible schedule is already active for ALL groups.", threadID, messageID);
       }
       
-      scheduleMessages(api, threadID);
+      // Update thread list
+      await updateAllThreads(api);
+      
+      // Activate global schedule
+      globalSchedule.active = true;
+      scheduleGlobalMessages(api);
       
       const tz = 'Asia/Manila';
       const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-      const afternoon = moment.tz(tz).set({ hour: 12, minute: 38 }).format('hh:mm A');
+      const afternoon = moment.tz(tz).set({ hour: 12, minute: 55 }).format('hh:mm A');
       const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
       
       return api.sendMessage(
-        `📖 Bible Schedule Activated\n━━━━━━━━━━━━━━━━\n` +
+        `📖 Bible Schedule Activated (GLOBAL)\n━━━━━━━━━━━━━━━━\n` +
         `🌅 Morning (${morning}): Humility\n` +
         `☀️ Afternoon (${afternoon}): Lust\n` +
         `🌙 Evening (${evening}): Mark 6:66\n` +
         `━━━━━━━━━━━━━━━━\n` +
-        `Daily Bible verses will be sent at these times.`,
+        `✅ Sending to ALL ${allThreads.size} groups.\n\n` +
+        `New groups added automatically will also receive verses.`,
         threadID,
         messageID
       );
       
     } else if (command === "off") {
-      if (!schedules[threadID]?.active) {
-        return api.sendMessage("❌ Bible schedule is not active in this group.", threadID, messageID);
+      if (!globalSchedule.active) {
+        return api.sendMessage("❌ Bible schedule is not active.", threadID, messageID);
       }
       
-      cancelSchedules(threadID);
-      return api.sendMessage("✅ Bible schedule has been turned off for this group.", threadID, messageID);
+      cancelGlobalSchedule();
+      return api.sendMessage("✅ Bible schedule has been turned off for ALL groups.", threadID, messageID);
       
     } else if (command === "status") {
-      if (schedules[threadID]?.active) {
-        const tz = 'Asia/Manila';
-        const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
-        const afternoon = moment.tz(tz).set({ hour: 12, minute: 38 }).format('hh:mm A');
-        const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
-        
-        return api.sendMessage(
-          `📖 Bible Schedule Status\n━━━━━━━━━━━━━━━━\n` +
-          `✅ Active: Yes\n` +
-          `🌅 Morning (${morning}): Humility\n` +
-          `☀️ Afternoon (${afternoon}): Lust\n` +
-          `🌙 Evening (${evening}): Mark 6:66\n` +
-          `━━━━━━━━━━━━━━━━\n` +
-          `Daily verses are being sent.`,
-          threadID,
-          messageID
-        );
-      } else {
-        return api.sendMessage(
-          `📖 Bible Schedule Status\n━━━━━━━━━━━━━━━━\n` +
-          `❌ Active: No\n\n` +
-          `Use /biblesched on to activate daily Bible verses.`,
-          threadID,
-          messageID
-        );
-      }
+      const tz = 'Asia/Manila';
+      const morning = moment.tz(tz).set({ hour: 6, minute: 0 }).format('hh:mm A');
+      const afternoon = moment.tz(tz).set({ hour: 12, minute: 55 }).format('hh:mm A');
+      const evening = moment.tz(tz).set({ hour: 18, minute: 0 }).format('hh:mm A');
+      
+      return api.sendMessage(
+        `📖 **Bible Schedule Status**\n━━━━━━━━━━━━━━━━\n` +
+        `✅ **Active:** ${globalSchedule.active ? 'Yes' : 'No'}\n` +
+        `📊 **Groups:** ${allThreads.size} groups\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        `🌅 **Morning (${morning}):** Humility\n` +
+        `☀️ **Afternoon (${afternoon}):** Lust\n` +
+        `🌙 **Evening (${evening}):** Mark 6:66\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        `${globalSchedule.active ? 'Daily verses are being sent to ALL groups.' : 'Use /biblesched on to activate.'}`,
+        threadID,
+        messageID
+      );
       
     } else {
       return api.sendMessage(
         `📖 Bible Schedule Command\n━━━━━━━━━━━━━━━━\n` +
-        `• /biblesched on - Activate daily Bible verses\n` +
-        `• /biblesched off - Deactivate daily Bible verses\n` +
+        `• /biblesched on - Activate for ALL groups\n` +
+        `• /biblesched off - Deactivate for ALL groups\n` +
         `• /biblesched status - Check current status\n\n` +
-        `Schedule (Philippines Time):\n` +
+        `Schedule (Philippines Time):*\n` +
         `🌅 6:00 AM - Humility\n` +
-        `☀️ 12:30 PM - Lust\n` +
-        `🌙 6:00 PM - Mark 6:66`,
+        `☀️ 12:15 PM - Lust\n` +
+        `🌙 6:00 PM - Mark 6:66\n\n` +
+        `⚠️ When activated, verses are sent to ALL groups where bot is present!`,
         threadID,
         messageID
       );
