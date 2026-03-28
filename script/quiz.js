@@ -2,30 +2,30 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "quiz",
-  version: "3.1.0",
+  version: "4.0.0",
   hasPermssion: 0,
-  credits: "fixed by ChatGPT",
-  description: "AI quiz with working reply",
+  credits: "fixed fully",
+  description: "quiz working without handleReply",
   commandCategory: "fun",
   usages: "quiz [topic]",
   cooldowns: 5
 };
 
-// AI request
+// store quiz
+if (!global.quizData) global.quizData = {};
+
+// AI
 async function askAI(prompt) {
   const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}`;
   const res = await axios.get(url);
   return res.data;
 }
 
-// Generate question
+// generate
 async function generateQuestion(topic) {
-  const prompt =
-    `Make a quiz about ${topic}.\n\n` +
-    `Format:\n` +
-    `QUESTION: ...\nA: ...\nB: ...\nC: ...\nD: ...\nANSWER: A/B/C/D\nEXPLANATION: ...`;
-
-  const raw = await askAI(prompt);
+  const raw = await askAI(
+    `Make quiz about ${topic}\nFormat:\nQUESTION:\nA:\nB:\nC:\nD:\nANSWER:\nEXPLANATION:`
+  );
 
   return {
     question: raw.match(/QUESTION:\s*(.*)/i)?.[1],
@@ -50,63 +50,39 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("❌ Failed to generate quiz.", threadID);
   }
 
-  const msg =
-    `🧠 QUIZ — ${topic.toUpperCase()}\n` +
-    `━━━━━━━━━━━━━━\n` +
-    `❓ ${q.question}\n\n` +
-    `A️⃣ ${q.A}\n` +
-    `B️⃣ ${q.B}\n` +
-    `C️⃣ ${q.C}\n` +
-    `D️⃣ ${q.D}\n\n` +
-    `👉 Reply with A, B, C, or D`;
+  global.quizData[threadID] = {
+    answer: q.answer,
+    explanation: q.explanation,
+    author: senderID
+  };
 
-  api.sendMessage(msg, threadID, (err, info) => {
-    if (err) return;
-
-    // ✅ VERY IMPORTANT FIX
-    global.client.handleReply.push({
-      name: module.exports.config.name,
-      messageID: info.messageID,
-      author: senderID,
-      answer: q.answer,
-      explanation: q.explanation,
-      type: "quiz" // ⚠️ REQUIRED in some Mirai bases
-    });
-  });
+  return api.sendMessage(
+    `🧠 QUIZ — ${topic.toUpperCase()}\n━━━━━━━━━━━━━━\n❓ ${q.question}\n\nA️⃣ ${q.A}\nB️⃣ ${q.B}\nC️⃣ ${q.C}\nD️⃣ ${q.D}\n\n👉 Reply A, B, C, or D`,
+    threadID
+  );
 };
 
-// HANDLE REPLY
-module.exports.handleReply = async function ({ api, event, handleReply }) {
-  try {
-    const { threadID, messageID, senderID, body } = event;
+// HANDLE EVENT (🔥 THIS FIXES EVERYTHING)
+module.exports.handleEvent = async function ({ api, event }) {
+  const { threadID, senderID, body } = event;
 
-    // 🔥 DEBUG (you can remove later)
-    console.log("REPLY DETECTED:", body);
+  if (!body) return;
 
-    if (senderID !== handleReply.author) return;
+  const session = global.quizData[threadID];
+  if (!session) return;
 
-    if (!body) return;
+  if (senderID !== session.author) return;
 
-    const ans = body.trim().toUpperCase();
+  const ans = body.trim().toUpperCase();
 
-    if (!["A", "B", "C", "D"].includes(ans)) {
-      return api.sendMessage(
-        "❌ Reply only A, B, C, or D.",
-        threadID,
-        messageID
-      );
-    }
+  if (!["A", "B", "C", "D"].includes(ans)) return;
 
-    const correct = handleReply.answer;
+  delete global.quizData[threadID];
 
-    const msg =
-      ans === correct
-        ? `✅ CORRECT!\n\n💡 ${handleReply.explanation}`
-        : `❌ WRONG!\nCorrect: ${correct}\n\n💡 ${handleReply.explanation}`;
+  const msg =
+    ans === session.answer
+      ? `✅ CORRECT!\n\n💡 ${session.explanation}`
+      : `❌ WRONG!\nCorrect: ${session.answer}\n\n💡 ${session.explanation}`;
 
-    return api.sendMessage(msg, threadID, messageID);
-
-  } catch (e) {
-    console.error("HANDLE REPLY ERROR:", e);
-  }
+  return api.sendMessage(msg, threadID);
 };
