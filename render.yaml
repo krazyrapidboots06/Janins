@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: autobot
+    runtime: node
+    repo: https://github.com/krazyrapidboots06/Janins.git
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    region: singapore
+    autoDeployTrigger: commit
