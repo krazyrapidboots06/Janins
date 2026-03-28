@@ -2,7 +2,7 @@ const axios = require('axios');
 
 module.exports.config = {
   name: "mlcheck",
-  version: "2.0.0",
+  version: "3.0.0",
   role: 0,
   credits: "selov",
   description: "Check Mobile Legends account details",
@@ -37,11 +37,10 @@ module.exports.run = async function ({ api, event, args }) {
   
   try {
     // Try PuruBoy API
-    let response = null;
     let data = null;
     
     try {
-      response = await axios.post('https://puruboy-api.vercel.app/api/tools/mlbb', {
+      const response = await axios.post('https://puruboy-api.vercel.app/api/tools/mlbb', {
         userId: userId,
         zoneId: zoneId
       }, {
@@ -65,25 +64,26 @@ module.exports.run = async function ({ api, event, args }) {
       }
     }
     
+    // Check if we got valid data
     if (!data) {
       throw new Error("All APIs failed");
     }
     
     // Extract result from different response structures
-    let result = data.result || data.data || data.player || data;
+    const result = data.result || data.data || data;
     
-    // Get values
-    const nickname = result.nickname || result.name || result.username || result.player_name || "N/A";
-    const region = result.region || result.country || result.location || "N/A";
-    const lastLogin = result.lastLogin || result.last_login || result.last_active || result.lastSeen || "N/A";
-    const createdAt = result.createdAt || result.created_at || result.join_date || result.created || "N/A";
+    // Get values with fallbacks
+    const nickname = result.nickname || result.name || result.username || "N/A";
+    const region = result.region || result.country || "N/A";
+    const lastLogin = result.lastLogin || result.last_login || result.last_active || "N/A";
+    const createdAt = result.createdAt || result.created_at || result.join_date || "N/A";
     
     // Check if account exists
-    if (nickname === "N/A" && region === "N/A" && lastLogin === "N/A" && createdAt === "N/A") {
+    if (nickname === "N/A" && region === "N/A") {
       throw new Error("Account not found");
     }
     
-    // Format the response - NO "Checked by" line
+    // Format the response
     const resultMsg = 
       `🎮 MLBB ACCOUNT DETAILS\n` +
       `━━━━━━━━━━━━━━━━\n` +
@@ -106,13 +106,18 @@ module.exports.run = async function ({ api, event, args }) {
       `🌍 Zone ID: ${zoneId}\n` +
       `━━━━━━━━━━━━━━━━\n`;
     
-    if (err.message === "Account not found") {
+    if (err.message === "Account not found" || err.message === "All APIs failed") {
       errorMsg += `🔴 Account not found\n\n` +
-                  `💡 Possible reasons:\n` +
+                  `💡 **Possible reasons:**\n` +
                   `• Invalid User ID or Zone ID\n` +
-                  `• Account does not exist`;
+                  `• Account does not exist\n` +
+                  `• Account is private`;
+    } else if (err.code === 'ECONNABORTED') {
+      errorMsg += `🔴 Request Timed Out\n\n` +
+                  `💡 The server took too long to respond.\n` +
+                  `Please try again later.`;
     } else {
-      errorMsg += `🔴 Error* ${err.message}\n\n` +
+      errorMsg += `🔴 Error: ${err.message}\n\n` +
                   `💡 API service may be temporarily down.\n` +
                   `Please try again later.`;
     }
