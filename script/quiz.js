@@ -2,7 +2,7 @@ const axios = require('axios');
 
 module.exports.config = {
   name: "quiz",
-  version: "1.0.0",
+  version: "2.0.0",
   role: 0,
   credits: "selov",
   description: "AI-generated quiz with multiple choice questions",
@@ -11,7 +11,7 @@ module.exports.config = {
   cooldowns: 5
 };
 
-// Active quiz sessions
+// Store active quiz sessions globally
 if (!global.quizSessions) global.quizSessions = {};
 
 // Ask AI via Pollinations
@@ -84,49 +84,20 @@ async function generateQuestion(topic) {
 // Format quiz message
 function formatQuestion(q) {
   return (
-    `🧠 QUIZ — ${q.topic.toUpperCase()}\n` +
+    `🧠 **QUIZ** — ${q.topic.toUpperCase()}\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `❓ ${q.question}\n\n` +
     `A️⃣  ${q.options.A}\n` +
     `B️⃣  ${q.options.B}\n` +
     `C️⃣  ${q.options.C}\n` +
     `D️⃣  ${q.options.D}\n\n` +
-    `💡 Reply with A, B, C, or D!`
+    `💡 **Reply to this message with A, B, C, or D!**`
   );
 }
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
-  const input = args.join(" ").trim().toUpperCase();
-
-  // Check if answering an active quiz (when user replies with A/B/C/D)
-  if (input === "A" || input === "B" || input === "C" || input === "D") {
-    const session = global.quizSessions[senderID];
-    
-    if (!session) {
-      return api.sendMessage(
-        "❌ You don't have an active quiz. Start a new one with /quiz [topic]",
-        threadID,
-        messageID
-      );
-    }
-    
-    const correct = session.answer;
-    const isRight = input === correct;
-    
-    delete global.quizSessions[senderID];
-    
-    let msg = isRight
-      ? `✅ CORRECT! Well done!\n\n`
-      : `❌ Wrong! The answer is ${correct}\n\n`;
-    
-    msg += `💡 **Explanation:** ${session.explanation}\n\n`;
-    msg += isRight
-      ? `🎉 Keep it up! Try another: /quiz [topic]`
-      : `💪 Try again: /quiz [topic]`;
-    
-    return api.sendMessage(msg, threadID, messageID);
-  }
+  const input = args.join(" ").trim();
   
   // Generate new quiz
   const topic = input || "general knowledge";
@@ -137,30 +108,36 @@ module.exports.run = async function ({ api, event, args }) {
   try {
     const question = await generateQuestion(topic);
     
-    // Save session with timestamp
-    global.quizSessions[senderID] = {
+    // Save session with the message ID for reply tracking
+    const quizMessage = await api.sendMessage(formatQuestion(question), threadID);
+    
+    // Store session with the message ID that was just sent
+    global.quizSessions[quizMessage.messageID] = {
       answer: question.answer,
       explanation: question.explanation,
       topic: topic,
+      userID: senderID,
       time: Date.now()
     };
     
+    // Also store by user ID for quick lookup
+    global.quizSessions[`user_${senderID}`] = quizMessage.messageID;
+    
+    // Delete loading message
+    await api.unsendMessage(loadingMsg.messageID);
+    
     // Auto-expire session after 5 minutes
     setTimeout(() => {
-      if (global.quizSessions[senderID] && 
-          global.quizSessions[senderID].time === global.quizSessions[senderID].time) {
-        delete global.quizSessions[senderID];
+      if (global.quizSessions[quizMessage.messageID]) {
+        delete global.quizSessions[quizMessage.messageID];
+        delete global.quizSessions[`user_${senderID}`];
       }
     }, 5 * 60 * 1000);
-    
-    // Delete loading message and send quiz
-    await api.unsendMessage(loadingMsg.messageID);
-    api.sendMessage(formatQuestion(question), threadID, messageID);
     
   } catch (err) {
     console.error("[Quiz] Error:", err.message);
     await api.editMessage(
-      `❌ Could not generate quiz.\n\n` +
+      `❌ **Could not generate quiz.**\n\n` +
       `Try a more specific topic like:\n` +
       `• /quiz philippine history\n` +
       `• /quiz math\n` +
@@ -171,39 +148,51 @@ module.exports.run = async function ({ api, event, args }) {
   }
 };
 
-// Handle replies to quiz (when user replies with A/B/C/D to the quiz message)
+// Handle replies to quiz
 module.exports.handleReply = async function ({ api, event }) {
   const { threadID, messageID, senderID, body, messageReply } = event;
   
-  // Check if this is a reply to a quiz message
+  // Check if this is a reply to a message
   if (!messageReply) return;
   
-  const answer = body?.trim().toUpperCase();
-  if (!answer || !["A", "B", "C", "D"].includes(answer)) return;
+  const repliedMessageID = messageReply.messageID;
   
-  const session = global.quizSessions[senderID];
+  // Check if there's an active quiz for this replied message
+  const session = global.quizSessions[repliedMessageID];
   
   if (!session) {
-    return api.sendMessage(
-      "❌ You don't have an active quiz. Start a new one with /quiz [topic]",
-      threadID,
-      messageID
-    );
+    // No active quiz for this message
+    return;
+  }
+  
+  // Check if the user replying is the same who started the quiz
+  if (session.userID !== senderID) {
+    return api.sendMessage("❌ This quiz was created by another user. Please start your own quiz with /quiz [topic]", threadID, messageID);
+  }
+  
+  const answer = body?.trim().toUpperCase();
+  
+  // Check if answer is valid
+  if (!answer || !["A", "B", "C", "D"].includes(answer)) {
+    return api.sendMessage("❌ Please reply with A, B, C, or D only!", threadID, messageID);
   }
   
   const correct = session.answer;
   const isRight = answer === correct;
   
-  delete global.quizSessions[senderID];
+  // Delete the session
+  delete global.quizSessions[repliedMessageID];
+  delete global.quizSessions[`user_${senderID}`];
   
-  let msg = isRight
-    ? `✅ CORRECT! Well done!\n\n`
-    : `❌ Wrong! The answer is ${correct}\n\n`;
+  // Prepare result message
+  let resultMsg = isRight
+    ? `✅ **CORRECT!** Well done!\n\n`
+    : `❌ **Wrong!** The correct answer is **${correct}**\n\n`;
   
-  msg += `💡 Explanation: ${session.explanation}\n\n`;
-  msg += isRight
-    ? `🎉 Keep it up! Try another: /quiz [topic]`
-    : `💪 Try again: /quiz [topic]`;
+  resultMsg += `💡 **Explanation:** ${session.explanation}\n\n`;
+  resultMsg += isRight
+    ? `🎉 Keep it up! Start another quiz with /quiz [topic]`
+    : `💪 Try again! Start a new quiz with /quiz [topic]`;
   
-  return api.sendMessage(msg, threadID, messageID);
+  return api.sendMessage(resultMsg, threadID, messageID);
 };
