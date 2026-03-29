@@ -8,69 +8,79 @@ module.exports.config = {
   name: "sendnoti",
   version: "1.5.0",
   role: 3,
-  credits: " (ported by selov)",
-  description: "Create and send notifications to groups that you manage.",
+  credits: "NTKhang (converted by selov)",
+  description: "Create and send notifications to group chats you manage",
   commandCategory: "box chat",
-  usages: "/sendnoti <create | add | delete | remove | list | info | send> [args]",
+  usages: "/sendnoti <create | add | list | info | delete | remove | send> [args]",
   cooldowns: 5,
   aliases: ["noti", "groupnoti"]
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🌐 LANGUAGE STRINGS
+// 🔧 GLOBAL DATA STORE
+// Stored in global.notiData[senderID] = [ ...groups ]
+// Each group: { groupName, groupID, threadIDs: [] }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const lang = {
-  missingGroupName:        "❌ Please enter a group notification name.",
-  groupNameExists:         "❌ Notification group \"%1\" already exists. Please choose another name.",
-  createdGroup:            "✅ Created notification group successfully!\n━━━━━━━━━━━━━━━\n📛 Name : %1\n🆔 ID   : %2",
-  missingGroupNameToAdd:   "❌ Please enter the notification group name you want to add this chat to.",
-  groupNameNotExists:      "❌ You have not created/managed any notification group named: \"%1\"",
-  notAdmin:                "❌ You are not an admin of this group chat.",
-  added:                   "✅ Added current group chat to notification group: \"%1\"",
-  missingGroupNameToDelete:"❌ Please enter the notification group name to remove this chat from.",
-  notInGroup:              "❌ This group chat is not in notification group \"%1\".",
-  emptyList:               "📭 You have not created or managed any notification group yet.",
-  showList:                "📋 Your notification groups:\n(Format: <Name> — <No. of chats>)\n━━━━━━━━━━━━━━━\n%1",
-  deleted:                 "✅ Removed current group chat from notification group: \"%1\"",
-  failed:                  "❌ Failed to send to %1 group chat(s):\n%2",
-  missingGroupNameToRemove:"❌ Please enter the notification group name you want to delete.",
-  removed:                 "🗑️ Deleted notification group: \"%1\"",
-  missingGroupNameToSend:  "❌ Please enter the notification group name you want to send to.",
-  groupIsEmpty:            "📭 Notification group \"%1\" has no group chats yet.",
-  sending:                 "📡 Sending notification to %1 group chat(s) in group \"%2\"...",
-  success:                 "✅ Notification sent to %1 group chat(s) in \"%2\" successfully!",
-  notAdminOfGroup:         "Permission denied (not admin of group)",
-  missingGroupNameToView:  "❌ Please enter the notification group name you want to view.",
-  groupInfo:               "📋 GROUP INFO\n━━━━━━━━━━━━━━━\n📛 Name    : %1\n🆔 ID      : %2\n📅 Created : %3\n%4",
-  groupInfoHasGroup:       "💬 Group Chats:\n%1",
-  noGroup:                 "📭 You have not created or managed any notification group yet."
-};
-
-// Simple string formatter: replaces %1, %2, ... with values
-function L(key, ...vars) {
-  let str = lang[key] || key;
-  vars.forEach((v, i) => { str = str.replace(`%${i + 1}`, v); });
-  return str;
-}
-
-// Format timestamp from groupID (epoch ms)
-function formatTime(ms) {
-  const d = new Date(ms);
-  const pad = n => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 📦 DATA STORE (in-memory, persisted via global)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// global.sendNotiData = { [senderID]: [ { groupName, groupID, threadIDs[] }, ... ] }
-if (!global.sendNotiData) global.sendNotiData = {};
+if (!global.notiData) global.notiData = {};
 
 function getUserGroups(senderID) {
-  if (!global.sendNotiData[senderID]) global.sendNotiData[senderID] = [];
-  return global.sendNotiData[senderID];
+  if (!global.notiData[senderID]) global.notiData[senderID] = [];
+  return global.notiData[senderID];
+}
+
+function saveUserGroups(senderID, groups) {
+  global.notiData[senderID] = groups;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🔧 HELPERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function getTime(timestamp) {
+  const d = new Date(Number(timestamp));
+  const pad = n => String(n).padStart(2, "0");
+  return (
+    `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  );
+}
+
+async function getStreamsFromAttachment(attachments) {
+  const axios = require("axios");
+  const streams = [];
+  for (const att of attachments) {
+    try {
+      const url = att.url || att.playbackUrl || att.previewUrl;
+      if (!url) continue;
+      const res = await axios.get(url, { responseType: "stream", timeout: 10000 });
+      streams.push(res.data);
+    } catch (_) {
+      // skip failed attachments silently
+    }
+  }
+  return streams;
+}
+
+async function isAdminOfThread(api, threadID, senderID) {
+  try {
+    const info = await api.getThreadInfo(threadID);
+    const adminIDs = (info.adminIDs || []).map(a =>
+      typeof a === "object" ? String(a.id) : String(a)
+    );
+    return adminIDs.includes(String(senderID));
+  } catch (_) {
+    return false;
+  }
+}
+
+async function getThreadName(api, threadID) {
+  try {
+    const info = await api.getThreadInfo(threadID);
+    return info.threadName || info.name || String(threadID);
+  } catch (_) {
+    return String(threadID);
+  }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -78,224 +88,336 @@ function getUserGroups(senderID) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
-  const sub = (args[0] || "").toLowerCase().trim();
-  const userGroups = getUserGroups(senderID);
+  const { threadID, senderID } = event;
+  const cmd = (args[0] || "").toLowerCase().trim();
+  const groups = getUserGroups(senderID);
 
-  // ── NO ARGS: SHOW HELP ──────────────────────────────
-  if (!sub) {
+  // ── NO ARGS: SHOW HELP ──────────────────────────
+  if (!cmd) {
     return api.sendMessage(
-      `📢 SEND NOTI COMMAND\n` +
+      `📢 SENDNOTI COMMAND v1.5\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `Manage and broadcast notifications to multiple group chats.\n\n` +
+      `Manage & broadcast notifications to groups.\n\n` +
       `📌 COMMANDS:\n\n` +
-      `▸ /sendnoti create <name>\n` +
+      `▸ /sendnoti create <groupName>\n` +
       `  Create a new notification group\n\n` +
-      `▸ /sendnoti add <name>\n` +
-      `  Add current chat to a noti group\n` +
-      `  (Must be group admin)\n\n` +
-      `▸ /sendnoti delete <name>\n` +
-      `  Remove current chat from a noti group\n\n` +
-      `▸ /sendnoti remove <name>\n` +
-      `  Permanently delete a noti group\n\n` +
+      `▸ /sendnoti add <groupName>\n` +
+      `  Add this chat to a noti group\n` +
+      `  (Must be admin of this chat)\n\n` +
       `▸ /sendnoti list\n` +
-      `  View all your noti groups\n\n` +
-      `▸ /sendnoti info <name>\n` +
-      `  View details of a noti group\n\n` +
-      `▸ /sendnoti send <name> | <message>\n` +
-      `  Broadcast a message to all chats\n` +
-      `  in the noti group\n` +
+      `  Show all your notification groups\n\n` +
+      `▸ /sendnoti info <groupName>\n` +
+      `  View info of a notification group\n\n` +
+      `▸ /sendnoti delete <groupName>\n` +
+      `  Remove this chat from a noti group\n\n` +
+      `▸ /sendnoti remove <groupName>\n` +
+      `  Delete entire notification group\n\n` +
+      `▸ /sendnoti send <groupName> | <message>\n` +
+      `  Broadcast to all chats in the group\n` +
+      `  (Attach images/videos if needed)\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━`,
-      threadID,
-      messageID
+      threadID
     );
   }
 
-  // ── CREATE ──────────────────────────────────────────
-  if (sub === "create") {
+  // ────────────────────────────────────────────────
+  // CREATE — /sendnoti create <groupName>
+  // ────────────────────────────────────────────────
+  if (cmd === "create") {
     const groupName = args.slice(1).join(" ").trim();
-    if (!groupName)
-      return api.sendMessage(L("missingGroupName"), threadID, messageID);
 
-    if (userGroups.some(g => g.groupName === groupName))
-      return api.sendMessage(L("groupNameExists", groupName), threadID, messageID);
+    if (!groupName) {
+      return api.sendMessage(
+        `❌ Please enter a notification group name.\n\n` +
+        `📌 Usage: /sendnoti create <groupName>\n` +
+        `📖 Example: /sendnoti create TEAM1`,
+        threadID
+      );
+    }
+
+    if (groups.some(item => item.groupName === groupName)) {
+      return api.sendMessage(
+        `❌ Notification group "${groupName}" already exists.\n` +
+        `Please choose a different name.`,
+        threadID
+      );
+    }
 
     const groupID = Date.now();
-    userGroups.push({ groupName, groupID, threadIDs: [] });
-
-    return api.sendMessage(L("createdGroup", groupName, groupID), threadID, messageID);
-  }
-
-  // ── ADD ─────────────────────────────────────────────
-  if (sub === "add") {
-    const groupName = args.slice(1).join(" ").trim();
-    if (!groupName)
-      return api.sendMessage(L("missingGroupNameToAdd"), threadID, messageID);
-
-    const group = userGroups.find(g => g.groupName === groupName);
-    if (!group)
-      return api.sendMessage(L("groupNameNotExists", groupName), threadID, messageID);
-
-    // Check if sender is admin of current thread
-    let isAdmin = false;
-    try {
-      const threadInfo = await new Promise((res, rej) =>
-        api.getThreadInfo(threadID, (err, info) => err ? rej(err) : res(info))
-      );
-      isAdmin = (threadInfo?.adminIDs || []).some(a => (a.id || a) == senderID);
-    } catch (_) {
-      isAdmin = false;
-    }
-
-    if (!isAdmin)
-      return api.sendMessage(L("notAdmin"), threadID, messageID);
-
-    if (group.threadIDs.includes(threadID))
-      return api.sendMessage(
-        `⚠️ This chat is already in notification group "${groupName}".`,
-        threadID,
-        messageID
-      );
-
-    group.threadIDs.push(threadID);
-    return api.sendMessage(L("added", groupName), threadID, messageID);
-  }
-
-  // ── DELETE (remove current chat from group) ─────────
-  if (sub === "delete") {
-    const groupName = args.slice(1).join(" ").trim();
-    if (!groupName)
-      return api.sendMessage(L("missingGroupNameToDelete"), threadID, messageID);
-
-    const group = userGroups.find(g => g.groupName === groupName);
-    if (!group)
-      return api.sendMessage(L("groupNameNotExists", groupName), threadID, messageID);
-
-    const idx = group.threadIDs.indexOf(threadID);
-    if (idx === -1)
-      return api.sendMessage(L("notInGroup", groupName), threadID, messageID);
-
-    group.threadIDs.splice(idx, 1);
-    return api.sendMessage(L("deleted", groupName), threadID, messageID);
-  }
-
-  // ── REMOVE (delete entire noti group) ───────────────
-  if (sub === "remove" || sub === "-r") {
-    const groupName = args.slice(1).join(" ").trim();
-    if (!groupName)
-      return api.sendMessage(L("missingGroupNameToRemove"), threadID, messageID);
-
-    const idx = userGroups.findIndex(g => g.groupName === groupName);
-    if (idx === -1)
-      return api.sendMessage(L("groupNameNotExists", groupName), threadID, messageID);
-
-    userGroups.splice(idx, 1);
-    return api.sendMessage(L("removed", groupName), threadID, messageID);
-  }
-
-  // ── LIST ────────────────────────────────────────────
-  if (sub === "list") {
-    if (!userGroups.length)
-      return api.sendMessage(L("noGroup"), threadID, messageID);
-
-    const lines = userGroups.map(g =>
-      `▸ ${g.groupName} — ${g.threadIDs.length} chat(s)`
-    ).join("\n");
-
-    return api.sendMessage(L("showList", lines), threadID, messageID);
-  }
-
-  // ── INFO ────────────────────────────────────────────
-  if (sub === "info") {
-    const groupName = args.slice(1).join(" ").trim();
-    if (!groupName)
-      return api.sendMessage(L("missingGroupNameToView"), threadID, messageID);
-
-    const group = userGroups.find(g => g.groupName === groupName);
-    if (!group)
-      return api.sendMessage(L("groupNameNotExists", groupName), threadID, messageID);
-
-    let chatLines = "";
-    for (const tid of group.threadIDs) {
-      let name = "Unknown";
-      try {
-        const info = await new Promise((res, rej) =>
-          api.getThreadInfo(tid, (err, i) => err ? rej(err) : res(i))
-        );
-        name = info?.threadName || "Unknown";
-      } catch (_) {}
-      chatLines += ` ▸ ID: ${tid}\n   Name: ${name}\n\n`;
-    }
-
-    const hasChats = chatLines
-      ? L("groupInfoHasGroup", chatLines)
-      : L("groupIsEmpty", groupName);
+    groups.push({ groupName, groupID, threadIDs: [] });
+    saveUserGroups(senderID, groups);
 
     return api.sendMessage(
-      L("groupInfo", groupName, group.groupID, formatTime(group.groupID), hasChats),
-      threadID,
-      messageID
+      `✅ Notification group created!\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📛 Name : ${groupName}\n` +
+      `🆔 ID   : ${groupID}\n` +
+      `📅 Date : ${getTime(groupID)}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Next step: go to a group chat and type\n` +
+      `/sendnoti add ${groupName}`,
+      threadID
     );
   }
 
-  // ── SEND ────────────────────────────────────────────
-  if (sub === "send") {
-    const rest = args.slice(1).join(" ");
-    const pipeIdx = rest.indexOf("|");
+  // ────────────────────────────────────────────────
+  // ADD — /sendnoti add <groupName>
+  // ────────────────────────────────────────────────
+  if (cmd === "add") {
+    const groupName = args.slice(1).join(" ").trim();
 
-    if (pipeIdx === -1) {
+    if (!groupName) {
       return api.sendMessage(
-        `❌ Invalid format!\n\n` +
-        `📌 Usage:\n` +
-        `/sendnoti send <groupName> | <message>\n\n` +
-        `📖 Example:\n` +
-        `/sendnoti send TEAM1 | Hello everyone!`,
-        threadID,
-        messageID
+        `❌ Please enter the notification group name.\n\n` +
+        `📌 Usage: /sendnoti add <groupName>\n` +
+        `📖 Example: /sendnoti add TEAM1`,
+        threadID
       );
     }
 
-    const groupName = rest.slice(0, pipeIdx).trim();
-    const messageBody = rest.slice(pipeIdx + 1).trim();
+    const getGroup = groups.find(item => item.groupName === groupName);
+    if (!getGroup) {
+      return api.sendMessage(
+        `❌ No notification group found with name: "${groupName}"\n\n` +
+        `Use /sendnoti list to see your groups.`,
+        threadID
+      );
+    }
 
-    if (!groupName)
-      return api.sendMessage(L("missingGroupNameToSend"), threadID, messageID);
+    const isAdmin = await isAdminOfThread(api, threadID, senderID);
+    if (!isAdmin) {
+      return api.sendMessage(
+        `❌ You are not admin of this group chat.\n` +
+        `Only group admins can add this chat to a notification group.`,
+        threadID
+      );
+    }
 
-    const group = userGroups.find(g => g.groupName === groupName);
-    if (!group)
-      return api.sendMessage(L("groupNameNotExists", groupName), threadID, messageID);
+    if (getGroup.threadIDs.includes(String(threadID))) {
+      return api.sendMessage(
+        `⚠️ This group chat is already in notification group: "${groupName}"`,
+        threadID
+      );
+    }
 
-    if (group.threadIDs.length === 0)
-      return api.sendMessage(L("groupIsEmpty", groupName), threadID, messageID);
+    getGroup.threadIDs.push(String(threadID));
+    saveUserGroups(senderID, groups);
 
-    // Build message form
-    const formSend = { body: messageBody || "" };
+    return api.sendMessage(
+      `✅ Added this group chat to notification group: "${groupName}"\n` +
+      `📊 Total chats in group: ${getGroup.threadIDs.length}`,
+      threadID
+    );
+  }
 
-    // Handle attachments from sender's message or replied message
-    const allAttachments = [
-      ...(event.attachments || []),
-      ...(event.messageReply?.attachments || [])
-    ].filter(a => ["photo", "png", "animated_image", "video", "audio"].includes(a.type));
+  // ────────────────────────────────────────────────
+  // LIST — /sendnoti list
+  // ────────────────────────────────────────────────
+  if (cmd === "list") {
+    if (!groups.length) {
+      return api.sendMessage(
+        `📭 You have no notification groups yet.\n\n` +
+        `Use /sendnoti create <groupName> to create one.`,
+        threadID
+      );
+    }
 
-    if (allAttachments.length > 0) {
-      try {
-        const axios = require("axios");
-        const streams = await Promise.all(
-          allAttachments.map(att =>
-            axios.get(att.url, { responseType: "stream", timeout: 10000 }).then(r => r.data)
-          )
-        );
-        formSend.attachment = streams;
-      } catch (_) {
-        // Proceed without attachment if fetch fails
+    const listMsg = groups.map((item, i) =>
+      `${i + 1}. ${item.groupName} — ${item.threadIDs.length} chat(s)`
+    ).join("\n");
+
+    return api.sendMessage(
+      `📋 YOUR NOTIFICATION GROUPS\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `${listMsg}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Total: ${groups.length} group(s)`,
+      threadID
+    );
+  }
+
+  // ────────────────────────────────────────────────
+  // INFO — /sendnoti info <groupName>
+  // ────────────────────────────────────────────────
+  if (cmd === "info") {
+    const groupName = args.slice(1).join(" ").trim();
+
+    if (!groupName) {
+      return api.sendMessage(
+        `❌ Please enter the notification group name.\n\n` +
+        `📌 Usage: /sendnoti info <groupName>\n` +
+        `📖 Example: /sendnoti info TEAM1`,
+        threadID
+      );
+    }
+
+    const getGroup = groups.find(item => item.groupName === groupName);
+    if (!getGroup) {
+      return api.sendMessage(
+        `❌ No notification group found with name: "${groupName}"`,
+        threadID
+      );
+    }
+
+    const { threadIDs, groupID } = getGroup;
+    let chatListMsg = "";
+
+    if (threadIDs.length === 0) {
+      chatListMsg = `  (No group chats added yet)\n`;
+    } else {
+      for (const tid of threadIDs) {
+        const name = await getThreadName(api, tid);
+        chatListMsg += `  • ${name}\n    ID: ${tid}\n\n`;
       }
     }
 
-    const { threadIDs } = group;
+    return api.sendMessage(
+      `📢 NOTIFICATION GROUP INFO\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📛 Name    : ${groupName}\n` +
+      `🆔 ID      : ${groupID}\n` +
+      `📅 Created : ${getTime(groupID)}\n` +
+      `👥 Chats   : ${threadIDs.length}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📁 Group Chats:\n${chatListMsg}` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      threadID
+    );
+  }
 
-    // Show sending status
+  // ────────────────────────────────────────────────
+  // DELETE — /sendnoti delete <groupName>
+  // Removes the CURRENT thread from a noti group
+  // ────────────────────────────────────────────────
+  if (cmd === "delete") {
+    const groupName = args.slice(1).join(" ").trim();
+
+    if (!groupName) {
+      return api.sendMessage(
+        `❌ Please enter the notification group name.\n\n` +
+        `📌 Usage: /sendnoti delete <groupName>\n` +
+        `📖 Example: /sendnoti delete TEAM1`,
+        threadID
+      );
+    }
+
+    const getGroup = groups.find(item => item.groupName === groupName);
+    if (!getGroup) {
+      return api.sendMessage(
+        `❌ No notification group found with name: "${groupName}"`,
+        threadID
+      );
+    }
+
+    const findIndex = getGroup.threadIDs.findIndex(tid => tid === String(threadID));
+    if (findIndex === -1) {
+      return api.sendMessage(
+        `⚠️ This group chat is not in notification group: "${groupName}"`,
+        threadID
+      );
+    }
+
+    getGroup.threadIDs.splice(findIndex, 1);
+    saveUserGroups(senderID, groups);
+
+    return api.sendMessage(
+      `✅ Removed this group chat from notification group: "${groupName}"\n` +
+      `📊 Remaining chats in group: ${getGroup.threadIDs.length}`,
+      threadID
+    );
+  }
+
+  // ────────────────────────────────────────────────
+  // REMOVE / -r — /sendnoti remove <groupName>
+  // Deletes the ENTIRE notification group
+  // ────────────────────────────────────────────────
+  if (cmd === "remove" || cmd === "-r") {
+    const groupName = args.slice(1).join(" ").trim();
+
+    if (!groupName) {
+      return api.sendMessage(
+        `❌ Please enter the notification group name to remove.\n\n` +
+        `📌 Usage: /sendnoti remove <groupName>\n` +
+        `📖 Example: /sendnoti remove TEAM1`,
+        threadID
+      );
+    }
+
+    const findIndex = groups.findIndex(item => item.groupName === groupName);
+    if (findIndex === -1) {
+      return api.sendMessage(
+        `❌ No notification group found with name: "${groupName}"`,
+        threadID
+      );
+    }
+
+    groups.splice(findIndex, 1);
+    saveUserGroups(senderID, groups);
+
+    return api.sendMessage(
+      `🗑️ Notification group "${groupName}" has been removed.\n` +
+      `📊 Remaining groups: ${groups.length}`,
+      threadID
+    );
+  }
+
+  // ────────────────────────────────────────────────
+  // SEND — /sendnoti send <groupName> | <message>
+  // Broadcasts message to all chats in the noti group
+  // ────────────────────────────────────────────────
+  if (cmd === "send") {
+    const fullArgs = args.slice(1).join(" ");
+    const splitPipe = fullArgs.split("|");
+    const groupName = (splitPipe[0] || "").trim();
+    const messageSend = splitPipe.slice(1).join("|").trim();
+
+    if (!groupName) {
+      return api.sendMessage(
+        `❌ Please enter the notification group name.\n\n` +
+        `📌 Usage: /sendnoti send <groupName> | <message>\n` +
+        `📖 Example: /sendnoti send TEAM1 | Hello everyone!`,
+        threadID
+      );
+    }
+
+    const getGroup = groups.find(item => item.groupName === groupName);
+    if (!getGroup) {
+      return api.sendMessage(
+        `❌ No notification group found with name: "${groupName}"`,
+        threadID
+      );
+    }
+
+    if (getGroup.threadIDs.length === 0) {
+      return api.sendMessage(
+        `⚠️ Notification group "${groupName}" has no group chats yet.\n\n` +
+        `Go into a group chat and type:\n/sendnoti add ${groupName}`,
+        threadID
+      );
+    }
+
+    // Build form
+    const formSend = { body: messageSend || "" };
+
+    // Handle attachments from current message or replied message
+    const allAttachments = [
+      ...(event.attachments || []),
+      ...(event.messageReply?.attachments || [])
+    ].filter(att =>
+      ["photo", "png", "animated_image", "video", "audio"].includes(att.type)
+    );
+
+    if (allAttachments.length) {
+      formSend.attachment = await getStreamsFromAttachment(allAttachments);
+    }
+
+    const { threadIDs } = getGroup;
+
+    // Loading message
     const loadMsg = await api.sendMessage(
-      L("sending", threadIDs.length, groupName),
+      `📤 Broadcasting to ${threadIDs.length} group chat(s)...\n` +
+      `📛 Group : "${groupName}"\n` +
+      `⏳ Please wait...`,
       threadID
     );
 
@@ -303,61 +425,82 @@ module.exports.run = async function ({ api, event, args }) {
     const failed  = [];
 
     for (const tid of threadIDs) {
-      await new Promise(r => setTimeout(r, 1000)); // Prevent rate limiting
+      // Small delay between sends to avoid rate limiting
+      await new Promise(r => setTimeout(r, 800));
 
       try {
-        // Check if sender is admin of the target thread
-        let isAdmin = false;
-        try {
-          const info = await new Promise((res, rej) =>
-            api.getThreadInfo(tid, (err, i) => err ? rej(err) : res(i))
-          );
-          isAdmin = (info?.adminIDs || []).some(a => (a.id || a) == senderID);
-          if (!isAdmin) throw { error: "PERMISSION_DENIED", threadName: info?.threadName };
-        } catch (e) {
-          if (e?.error === "PERMISSION_DENIED") throw e;
-          throw { error: "THREAD_FETCH_FAILED", threadName: "Unknown" };
+        const isAdmin  = await isAdminOfThread(api, tid, senderID);
+        const chatName = await getThreadName(api, tid);
+
+        if (!isAdmin) {
+          failed.push({ threadID: tid, threadName: chatName, error: "PERMISSION_DENIED" });
+          continue;
         }
 
-        await new Promise((res, rej) =>
-          api.sendMessage(formSend, tid, (err) => err ? rej({ error: err, tid }) : res())
-        );
+        await new Promise((resolve, reject) => {
+          api.sendMessage(formSend, tid, (err) => {
+            if (err) return reject({ threadID: tid, threadName: chatName, error: err?.message || "SEND_FAILED" });
+            resolve({ threadID: tid, threadName: chatName });
+          });
+        });
 
-        success.push(tid);
+        success.push({ threadID: tid, threadName: chatName });
       } catch (err) {
         failed.push({
-          tid,
-          threadName: err?.threadName || "Unknown",
-          error: err?.error || "UNKNOWN"
+          threadID: tid,
+          threadName: err?.threadName || String(tid),
+          error: err?.error || err?.message || "UNKNOWN_ERROR"
         });
       }
     }
 
-    // Remove loading message
+    // Delete loading message
     try { await api.unsendMessage(loadMsg.messageID); } catch (_) {}
 
-    // Build result message
-    let resultMsg = "";
+    // Build result report
+    let resultMsg =
+      `📊 BROADCAST COMPLETE\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📛 Group   : "${groupName}"\n` +
+      `📡 Total   : ${threadIDs.length} chat(s)\n` +
+      `✅ Success : ${success.length}\n` +
+      `❌ Failed  : ${failed.length}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-    if (success.length)
-      resultMsg += L("success", success.length, groupName) + "\n";
-
-    if (failed.length) {
-      const failDetails = failed.map(f =>
-        `\n▸ ID: ${f.tid}\n  Name: ${f.threadName}\n  Error: ${f.error === "PERMISSION_DENIED" ? L("notAdminOfGroup") : f.error}`
-      ).join("\n");
-      resultMsg += L("failed", failed.length, failDetails);
+    if (success.length) {
+      resultMsg += `✅ Sent to:\n`;
+      success.forEach(s => {
+        resultMsg += `  • ${s.threadName} (${s.threadID})\n`;
+      });
+      if (failed.length) resultMsg += `\n`;
     }
 
-    return api.sendMessage(resultMsg.trim(), threadID, messageID);
+    if (failed.length) {
+      resultMsg += `❌ Failed:\n`;
+      failed.forEach(f => {
+        const reason = f.error === "PERMISSION_DENIED"
+          ? "Not admin of this group"
+          : f.error;
+        resultMsg += `  • ${f.threadName} (${f.threadID})\n    ↳ ${reason}\n`;
+      });
+      resultMsg += `\n`;
+    }
+
+    resultMsg += `━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    return api.sendMessage(resultMsg, threadID);
   }
 
-  // ── UNKNOWN SUBCOMMAND ───────────────────────────────
+  // ────────────────────────────────────────────────
+  // UNKNOWN SUBCOMMAND
+  // ────────────────────────────────────────────────
   return api.sendMessage(
-    `❓ Unknown subcommand: "${sub}"\n\n` +
-    `Type /sendnoti to see all available commands.`,
-    threadID,
-    messageID
+    `❓ Unknown subcommand: "${cmd}"\n\n` +
+    `📋 Available commands:\n` +
+    `  create | add | list | info\n` +
+    `  delete | remove | send\n\n` +
+    `Type /sendnoti for the full guide.`,
+    threadID
   );
 };
 
@@ -369,30 +512,16 @@ module.exports.handleReply = async function ({ api, event }) {
   const { threadID, messageID, body } = event;
   const text = (body || "").toLowerCase().trim();
 
-  if (text.includes("create") || text.includes("how")) {
+  if (text.includes("list") || text.includes("group")) {
     return api.sendMessage(
-      `📌 To create a notification group:\n` +
-      `/sendnoti create <groupName>\n\n` +
-      `Example:\n` +
-      `/sendnoti create TEAM1`,
-      threadID,
-      messageID
-    );
-  }
-
-  if (text.includes("send") || text.includes("broadcast")) {
-    return api.sendMessage(
-      `📌 To broadcast a message:\n` +
-      `/sendnoti send <groupName> | <message>\n\n` +
-      `Example:\n` +
-      `/sendnoti send TEAM1 | Good morning everyone!`,
+      `📋 To see your notification groups:\n/sendnoti list`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `📢 Type /sendnoti to see all available commands.`,
+    `📢 Type /sendnoti to see the full command guide.`,
     threadID,
     messageID
   );
