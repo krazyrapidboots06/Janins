@@ -1,276 +1,201 @@
-"use strict";
+const axios = require('axios');
+const fs = require('fs-extra');
+const path = require('path');
 
-const axios = require("axios");
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ⚙️ CONFIG
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-const ADMIN_GROUP_ID = "61556388598622"; // ← Change this to your admin group ID
-const mediaTypes = ["photo", "animated_image", "video", "audio"];
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ⚙️ COMMAND CONFIG
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Admin UIDs - Make sure these are correct
+const ADMIN_UIDS = ["61556388598622"];
 
 module.exports.config = {
-  name: "calladmin",
-  version: "1.2.0",
+  name: "callad",
+  version: "2.0.0",
   role: 0,
-  credits: "SIFU (ported by selov)",
-  description: "Relay messages between users and the admin group. Admins can reply back directly.",
-  commandCategory: "contacts admin",
-  usages: "/calladmin <message>",
+  credits: "NTKhang",
+  description: "Send reports, feedback, bugs to bot admin",
+  commandCategory: "contacts",
+  usages: "/callad <message>",
   cooldowns: 5,
-  aliases: ["callad", "contactadmin", "msgadmin"]
+  aliases: ["report", "feedback"]
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔧 HELPER: Fetch attachment streams via axios
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-async function getAttachmentStreams(attachments) {
-  const streams = [];
-  for (const att of attachments) {
-    try {
-      const url = att.url || att.playable_url || att.preview_url;
-      if (!url) continue;
-      const res = await axios.get(url, { responseType: "stream", timeout: 10000 });
-      streams.push(res.data);
-    } catch (_) {
-      // Skip failed attachments silently
-    }
-  }
-  return streams;
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔧 HELPER: Get user name safely
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-async function getSenderName(api, senderID) {
-  try {
-    const info = await new Promise((res, rej) =>
-      api.getUserInfo(senderID, (err, data) => err ? rej(err) : res(data))
-    );
-    return info?.[senderID]?.name || "Unknown User";
-  } catch (_) {
-    return "Unknown User";
-  }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔧 HELPER: Relay store (global)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-if (!global.calladminRelay) global.calladminRelay = new Map();
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🚀 MAIN RUN FUNCTION
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Global store for reply handlers
+if (!global.calladReplyHandlers) global.calladReplyHandlers = {};
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+  const { threadID, messageID, senderID, isGroup, attachments, messageReply } = event;
+  const message = args.join(" ").trim();
 
-  // ── NO MESSAGE ──
-  if (!args[0]) {
+  if (!message) {
     return api.sendMessage(
-      `❌ Please enter a message!\n\n` +
-      `📌 Usage:\n` +
-      `/calladmin <your message>\n\n` +
-      `📖 Example:\n` +
-      `/calladmin Hello admin, I need help with something.`,
+      "📨 **CALL ADMIN**\n━━━━━━━━━━━━━━━━\n" +
+      "Please enter the message you want to send to admin.\n\n" +
+      "**Example:** /callad There's a bug in the bot",
       threadID,
       messageID
     );
   }
 
-  const senderName = await getSenderName(api, senderID);
-  const messageText = args.join(" ");
+  if (ADMIN_UIDS.length === 0) {
+    return api.sendMessage("❌ Bot has no admin configured.", threadID, messageID);
+  }
 
-  // Collect attachments from message + replied message
-  const rawAttachments = [
-    ...(event.attachments || []),
-    ...(event.messageReply?.attachments || [])
-  ].filter(a => mediaTypes.includes(a.type));
+  // Set reaction
+  api.setMessageReaction("📨", messageID, () => {}, true);
 
-  const attachmentStreams = rawAttachments.length
-    ? await getAttachmentStreams(rawAttachments)
-    : [];
+  // Get sender info
+  const userInfo = await api.getUserInfo(senderID);
+  const senderName = userInfo[senderID]?.name || "User";
+
+  // Prepare message header
+  let msgHeader = `📨 **CALL ADMIN**\n━━━━━━━━━━━━━━━━\n👤 **User:** ${senderName}\n🆔 **ID:** ${senderID}`;
+  
+  if (isGroup) {
+    const threadInfo = await api.getThreadInfo(threadID);
+    msgHeader += `\n📌 **Group:** ${threadInfo.threadName}\n🔢 **Group ID:** ${threadID}`;
+  } else {
+    msgHeader += `\n💬 **Private Message**`;
+  }
 
   const formMessage = {
-    body:
-      `📨 𝐌𝐞𝐬𝐬𝐚𝐠𝐞 𝐅𝐫𝐨𝐦 𝐔𝐬𝐞𝐫\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `👤 Name      : ${senderName}\n` +
-      `🆔 User ID   : ${senderID}\n` +
-      `💬 Thread ID : ${threadID}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📝 Message:\n${messageText}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `💡 Reply to this message to respond to the user.`,
-    ...(attachmentStreams.length && { attachment: attachmentStreams })
+    body: msgHeader + `\n━━━━━━━━━━━━━━━━\n💬 **Message:**\n${message}\n━━━━━━━━━━━━━━━━\n💡 Reply to this message to respond to user.`,
+    mentions: [{ id: senderID, tag: senderName }]
   };
 
-  try {
-    // Send to admin group
-    const sentMsg = await new Promise((res, rej) =>
-      api.sendMessage(formMessage, ADMIN_GROUP_ID, (err, info) =>
-        err ? rej(err) : res(info)
-      )
+  // Add attachments if any
+  if (attachments && attachments.length > 0) {
+    formMessage.attachment = attachments.map(att => 
+      fs.createReadStream(att.url)
     );
+  }
 
-    // Store relay data for admin reply
-    global.calladminRelay.set(sentMsg.messageID, {
-      type: "relayToUser",
-      originalThreadID: threadID,
-      originalSenderID: senderID,
-      originalSenderName: senderName
-    });
+  // Send to all admins
+  const successIDs = [];
+  const failedIDs = [];
 
-    // Confirm to sender
-    return api.sendMessage(
-      `✅ Your message has been sent to the admin group!\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📝 Message: "${messageText}"\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `⏳ Please wait for the admin's reply.\n` +
-      `💡 If an admin replies, you will receive it here.`,
-      threadID,
-      messageID
-    );
-  } catch (err) {
-    console.error("[CallAdmin] Send error:", err);
-    return api.sendMessage(
-      `❌ Failed to send your message to the admin group.\n` +
-      `Please try again later.`,
+  for (const uid of ADMIN_UIDS) {
+    try {
+      const adminInfo = await api.getUserInfo(uid).catch(() => null);
+      
+      if (!adminInfo || !adminInfo[uid]) {
+        failedIDs.push({ adminID: uid, error: "Admin UID not found" });
+        continue;
+      }
+      
+      const sentMsg = await api.sendMessage(formMessage, uid);
+      successIDs.push(uid);
+      
+      global.calladReplyHandlers[sentMsg.messageID] = {
+        type: "userCallAdmin",
+        threadID: threadID,
+        messageIDSender: messageID,
+        senderID: senderID,
+        senderName: senderName
+      };
+      
+    } catch (err) {
+      failedIDs.push({ adminID: uid, error: err.message });
+    }
+  }
+
+  // Prepare result message
+  if (successIDs.length > 0) {
+    api.sendMessage(`✅ **Message sent to ${successIDs.length} admin(s) successfully!**`, threadID, messageID);
+  } else if (failedIDs.length > 0) {
+    api.sendMessage(
+      `❌ **Failed to send message to admins.**\n\n` +
+      `💡 **Possible reasons:**\n` +
+      `• Admins may have blocked the bot\n` +
+      `• Admin UIDs may be incorrect\n` +
+      `• Bot needs to be friends with admins`,
       threadID,
       messageID
     );
   }
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 💬 HANDLE REPLY (two-way relay)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+// Handle replies from admins
 module.exports.handleReply = async function ({ api, event }) {
-  const { threadID, messageID, senderID, body, messageReply } = event;
+  const { threadID, messageID, senderID, body, attachments, messageReply } = event;
 
-  // Get the original relay messageID that was replied to
-  const relayKey = messageReply?.messageID;
-  if (!relayKey) return;
+  if (!messageReply) return;
 
-  const relay = global.calladminRelay.get(relayKey);
-  if (!relay) return;
+  const repliedMessageID = messageReply.messageID;
+  const handlerData = global.calladReplyHandlers[repliedMessageID];
 
-  const senderName = await getSenderName(api, senderID);
-  const replyText = (body || "").trim();
+  if (!handlerData) return;
 
-  // Collect attachments from reply
-  const rawAttachments = (event.attachments || [])
-    .filter(a => mediaTypes.includes(a.type));
+  const { type, threadID: userThreadID, messageIDSender, senderID: userSenderID, senderName: userName } = handlerData;
 
-  const attachmentStreams = rawAttachments.length
-    ? await getAttachmentStreams(rawAttachments)
-    : [];
+  // Get current user info
+  const currentUser = await api.getUserInfo(senderID);
+  const currentUserName = currentUser[senderID]?.name || "Admin";
 
-  // ── ADMIN → USER relay ──────────────────────────────
-  if (relay.type === "relayToUser") {
-    const targetID = relay.originalThreadID;
+  const replyText = body || "";
 
-    const formMessage = {
-      body:
-        `📩 𝐑𝐞𝐩𝐥𝐲 𝐅𝐫𝐨𝐦 𝐀𝐝𝐦𝐢𝐧\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `🛡️ Admin    : ${senderName}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `💬 Message:\n${replyText || "(No text — see attachment)"}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `💡 Reply to this message to respond back.`,
-      ...(attachmentStreams.length && { attachment: attachmentStreams })
+  if (type === "userCallAdmin") {
+    // Admin replying to user
+    const replyMessage = {
+      body: `📨 **ADMIN REPLY**\n━━━━━━━━━━━━━━━━\n👤 **From:** ${currentUserName}\n━━━━━━━━━━━━━━━━\n💬 **Message:**\n${replyText}\n━━━━━━━━━━━━━━━━\n💡 Reply to continue conversation.`,
+      mentions: [{ id: senderID, tag: currentUserName }]
     };
 
-    try {
-      const sentMsg = await new Promise((res, rej) =>
-        api.sendMessage(formMessage, targetID, (err, info) =>
-          err ? rej(err) : res(info)
-        )
-      );
-
-      // Store relay so user can reply back to admin
-      global.calladminRelay.set(sentMsg.messageID, {
-        type: "relayToAdmin",
-        originalThreadID: targetID,
-        originalSenderID: relay.originalSenderID,
-        originalSenderName: relay.originalSenderName
-      });
-
-      // Confirm to admin
-      return api.sendMessage(
-        `✅ Reply sent to user successfully!\n` +
-        `👤 User: ${relay.originalSenderName}\n` +
-        `💬 Thread ID: ${relay.originalThreadID}`,
-        threadID,
-        messageID
-      );
-    } catch (err) {
-      console.error("[CallAdmin] Admin→User relay error:", err);
-      return api.sendMessage(
-        `❌ Failed to send reply to user.\n` +
-        `Thread ID: ${relay.originalThreadID}`,
-        threadID,
-        messageID
+    if (attachments && attachments.length > 0) {
+      replyMessage.attachment = attachments.map(att => 
+        fs.createReadStream(att.url)
       );
     }
-  }
 
-  // ── USER → ADMIN relay ──────────────────────────────
-  if (relay.type === "relayToAdmin") {
-    const formMessage = {
-      body:
-        `📨 𝐔𝐬𝐞𝐫 𝐑𝐞𝐩𝐥𝐢𝐞𝐝\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `👤 Name      : ${senderName}\n` +
-        `🆔 User ID   : ${senderID}\n` +
-        `💬 Thread ID : ${threadID}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `📝 Message:\n${replyText || "(No text — see attachment)"}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `💡 Reply to this message to respond back.`,
-      ...(attachmentStreams.length && { attachment: attachmentStreams })
+    api.sendMessage(replyMessage, userThreadID, (err, info) => {
+      if (err) {
+        api.sendMessage(`❌ Failed to send reply: ${err.message}`, threadID, messageID);
+        return;
+      }
+      
+      api.sendMessage(`✅ **Reply sent to user successfully!**`, threadID, messageID);
+      
+      global.calladReplyHandlers[info.messageID] = {
+        type: "adminReply",
+        threadID: threadID,
+        messageIDSender: info.messageID,
+        senderID: senderID,
+        senderName: currentUserName
+      };
+    }, messageIDSender);
+    
+  } else if (type === "adminReply") {
+    // User replying to admin's message
+    let groupInfo = "";
+    const isGroup = await api.getThreadInfo(threadID).catch(() => null);
+    
+    if (isGroup && isGroup.threadName) {
+      groupInfo = `\n📌 **Group:** ${isGroup.threadName}\n🔢 **Group ID:** ${threadID}`;
+    }
+    
+    const feedbackMessage = {
+      body: `📨 **USER REPLY**\n━━━━━━━━━━━━━━━━\n👤 **User:** ${userName || "User"}\n🆔 **ID:** ${userSenderID}${groupInfo}\n━━━━━━━━━━━━━━━━\n💬 **Message:**\n${replyText}\n━━━━━━━━━━━━━━━━\n💡 Reply to continue conversation.`,
+      mentions: [{ id: userSenderID, tag: userName || "User" }]
     };
 
-    try {
-      const sentMsg = await new Promise((res, rej) =>
-        api.sendMessage(formMessage, ADMIN_GROUP_ID, (err, info) =>
-          err ? rej(err) : res(info)
-        )
-      );
-
-      // Store relay again so admin can reply again
-      global.calladminRelay.set(sentMsg.messageID, {
-        type: "relayToUser",
-        originalThreadID: threadID,
-        originalSenderID: senderID,
-        originalSenderName: senderName
-      });
-
-      // Confirm to user
-      return api.sendMessage(
-        `✅ Your reply has been sent to the admin!\n` +
-        `⏳ Please wait for their response.`,
-        threadID,
-        messageID
-      );
-    } catch (err) {
-      console.error("[CallAdmin] User→Admin relay error:", err);
-      return api.sendMessage(
-        `❌ Failed to send your reply to the admin.\n` +
-        `Please try again.`,
-        threadID,
-        messageID
+    if (attachments && attachments.length > 0) {
+      feedbackMessage.attachment = attachments.map(att => 
+        fs.createReadStream(att.url)
       );
     }
+
+    api.sendMessage(feedbackMessage, handlerData.threadID, (err, info) => {
+      if (err) {
+        api.sendMessage(`❌ Failed to send reply: ${err.message}`, threadID, messageID);
+        return;
+      }
+      
+      api.sendMessage(`✅ **Reply sent to admin successfully!**`, threadID, messageID);
+      
+      global.calladReplyHandlers[info.messageID] = {
+        type: "userCallAdmin",
+        threadID: userThreadID,
+        messageIDSender: messageIDSender,
+        senderID: userSenderID,
+        senderName: userName
+      };
+    }, handlerData.messageIDSender);
   }
 };
