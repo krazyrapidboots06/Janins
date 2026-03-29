@@ -1,6 +1,6 @@
-const axios = require('axios');
-const fs = require('fs-extra');
-const path = require('path');
+const axios = require("axios");
+const fs = require("fs-extra");
+const path = require("path");
 
 // Admin UIDs - Make sure these are correct
 const ADMIN_UIDS = ["61556388598622"];
@@ -8,7 +8,7 @@ const ADMIN_UIDS = ["61556388598622"];
 module.exports.config = {
   name: "callad",
   version: "2.0.0",
-  role: 0,
+  hasPermssion: 0, // Changed from 'role' to 'hasPermssion'
   credits: "NTKhang",
   description: "Send reports, feedback, bugs to bot admin",
   commandCategory: "contacts",
