@@ -477,8 +477,8 @@ function createConfig() {
       selfListen: true,
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64",
       online: true,
-      autoMarkDelivery: false,
-      autoMarkRead: false
+      autoMarkDelivery: true,
+      autoMarkRead: true
     }
   }];
   const dataFolder = './data';
