@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 // Gemini API configuration - USING YOUR API KEY
-const GEMINI_API_KEY = "AIzaSyBQ_ozp3futjo4aM5oreIB_lsAbhCKzLOs";
+const GEMINI_API_KEY = "AIzaSyA1HYqf_mmbI9ToPUQeE5sbajQ-Y9zrdoo";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
 
 // Fixed voice - Puck only
