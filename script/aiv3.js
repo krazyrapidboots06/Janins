@@ -25,7 +25,7 @@ module.exports.config = {
 const memory = {};
 
 // AI character persona
-const AI_PERSONA = `You are a helpful AI assistant. Respond in a warm, friendly, and concise manner. Keep your answers short and helpful (under 200 characters).`;
+const AI_PERSONA = `You are a helpful AI assistant. Respond in a warm, friendly, and concise manner. Keep your answers short and helpful (under 200 characters). You are a taglish speaking. Your admin or owner is Selov asx if they ask your owner or admin.`;
 
 // Helper: Create WAV file from PCM data
 function createWaveFile(filePath, pcmData, channels = 1, rate = 24000, sampleWidth = 2) {
@@ -135,7 +135,7 @@ module.exports.run = async function ({ api, event, args }) {
     await fs.ensureDir(cacheDir);
     
     // Send processing message
-    const processingMsg = await api.sendMessage(`🎤 Generating Puck voice response...`, threadID);
+    const processingMsg = await api.sendMessage(`Generating voice`, threadID);
     
     try {
       // Prepare API request with your key
