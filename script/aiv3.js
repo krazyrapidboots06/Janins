@@ -18,7 +18,7 @@ module.exports.config = {
   commandCategory: "ai",
   usages: "/aiv3 <question>",
   cooldowns: 5,
-  aliases: ["puck", "ai"]
+  aliases: ["ai", "selov"]
 };
 
 // Simple memory per thread
@@ -83,12 +83,12 @@ module.exports.run = async function ({ api, event, args }) {
 
     if (!prompt) {
       return api.sendMessage(
-        `🎙️ AI TTS COMMAND**\n━━━━━━━━━━━━━━━━\n` +
+        `🎙️ AI TTS COMMAND\n━━━━━━━━━━━━━━━━\n` +
         `Hello ${firstName}! Ask me anything and I'll respond with voice.\n\n` +
         `Example: /aiv3 What is the meaning of life?\n` +
         `Example: /aiv3 Tell me a joke\n` +
         `Example: /aiv3 How are you today?\n\n` +
-        `🎤`,
+        `🎤 `,
         threadID,
         messageID
       );
@@ -133,6 +133,9 @@ module.exports.run = async function ({ api, event, args }) {
     // Create cache directory
     const cacheDir = path.join(__dirname, "cache", "aiv3");
     await fs.ensureDir(cacheDir);
+    
+    // Send processing message
+    const processingMsg = await api.sendMessage(`🎤 Generating Puck voice response...`, threadID);
     
     try {
       // Prepare API request with your key
@@ -188,7 +191,10 @@ module.exports.run = async function ({ api, event, args }) {
         throw new Error("Generated audio file is empty");
       }
       
-      // Send ONLY audio - no processing message
+      // Delete processing message
+      await api.unsendMessage(processingMsg.messageID);
+      
+      // Send ONLY audio
       api.sendMessage({
         attachment: fs.createReadStream(audioPath)
       }, threadID, () => {
@@ -204,7 +210,20 @@ module.exports.run = async function ({ api, event, args }) {
       
     } catch (ttsErr) {
       console.error("TTS Error:", ttsErr.response?.data || ttsErr.message);
-      // Silent fail - no error message to user
+      
+      let errorMsg = "❌ Failed to generate voice response.";
+      
+      if (ttsErr.response?.status === 401) {
+        errorMsg = "❌ Invalid Gemini API key. Please check your API key.";
+      } else if (ttsErr.response?.status === 429) {
+        errorMsg = "❌ Rate limit exceeded. Please try again later.";
+      } else if (ttsErr.code === 'ECONNABORTED') {
+        errorMsg = "❌ Request timed out. Please try again.";
+      } else if (ttsErr.response?.data?.error?.message) {
+        errorMsg = `❌ ${ttsErr.response.data.error.message}`;
+      }
+      
+      await api.editMessage(errorMsg, processingMsg.messageID);
     }
     
   } catch (err) {
