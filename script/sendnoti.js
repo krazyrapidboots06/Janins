@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 // Admin UIDs - Replace with actual admin UIDs for the bot
-const ADMIN_UIDS = ["61556388598622"]; 
+const ADMIN_UIDS = ["61556388598622", "61561982970881"]; 
 
 module.exports.config = {
   name: "sendnoti",
