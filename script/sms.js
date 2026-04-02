@@ -3,7 +3,7 @@ const axios = require('axios');
 module.exports.config = {
   name: "sms",
   version: "1.0.0",
-  role: 3,
+  role: 2,
   credits: "selov",
   description: "Send SMS to Philippine numbers using oreo API",
   commandCategory: "utility",
