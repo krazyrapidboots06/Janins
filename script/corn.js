@@ -8,7 +8,7 @@ let sentVideos = [];
 module.exports.config = {
   name: "corn",
   version: "3.0.0",
-  role: 3, // Admin only
+  role: 2, // Admin only
   credits: "selov",
   description: "Get random videos (Admin only)",
   commandCategory: "danger",
