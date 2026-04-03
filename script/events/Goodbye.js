@@ -70,10 +70,10 @@ module.exports.handleEvent = async function ({ api, event }) {
     // Prepare goodbye message
     const goodbyeMessage = 
       `❀•°•═════ஓ๑♡๑ஓ═════•°•❀\n\n` +
-      `                 R.I.P\n\n` +
-      `               Fly High\n\n` +
-      `     𝐂𝐀𝐔𝐒𝐄 𝐎𝐅 𝐃𝐄𝐀𝐓𝐇:\n\n` +
-      `          NAG LEAVE SA GC\n\n` +
+      `                   R.I.P\n\n` +
+      `                  Fly High\n\n` +
+      `        𝐂𝐀𝐔𝐒𝐄 𝐎𝐅 𝐃𝐄𝐀𝐓𝐇:\n\n` +
+      `           NAG LEAVE SA GC\n\n` +
       `                 ${userName}\n\n` +
       `       🕊️ 𝑖𝑛 𝑙𝑜𝑣𝑖𝑛𝑔 𝑚𝑒𝑚𝑜𝑟𝑖𝑒𝑠 🕊️\n\n` +
       `❀•°•═════ஓ๑♡๑ஓ═════•°•❀\n\n` +
