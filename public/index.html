@@ -4,13 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Selov Facebook Bot </title>
-    <!-- Bootstrap & Fonts (kept exactly as you had) -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
-    <!-- extra style for rainbow button and footer spacing -->
-    <style>
-        /* minimal addition: rainbow button style + footer adjustment */
+   <style>
         .rainbow-footer-btn {
             background: transparent;
             border: 2px solid rgba(255,255,255,0.15);
@@ -21,10 +18,9 @@
             font-weight: 600;
             font-size: 1.0rem;
             letter-spacing: 1px;
-            cursor: default;  /* not clickable — pure decoration */
+            cursor: default;  
             transition: 0.2s;
             box-shadow: 0 0 15px rgba(0,255,255,0.2);
-            /* rainbow text */
             background: linear-gradient(90deg,
                 #ff003c, #ff7b00, #fffb00, #9bff00,
                 #00ffd5, #0026ff, #b100ff, #ff006e);
@@ -36,26 +32,22 @@
             display: inline-block;
         }
 
-        /* make it stand out a bit on hover (still decorative) */
         .rainbow-footer-btn:hover {
             border-color: #ffffff66;
             box-shadow: 0 0 25px cyan;
         }
 
-        /* same animation as before */
         @keyframes rainbowFlow {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
 
-        /* ensure the footer container has space and is centered */
         .footer-note {
             text-align: center;
             margin-top: 40px;
         }
 
-        /* your existing footer style (if any) — we keep ping/time row intact */
         .footer {
             display: flex;
             justify-content: center;
@@ -71,7 +63,6 @@
             margin: 0;
         }
 
-        /* original layout details — preserve everything */
         .navbar-brand { font-weight: 600; }
         body { background: #f0f2f5; font-family: 'Poppins', sans-serif; }
         .bg-dark { background-color: #1a1e2b !important; }
@@ -83,7 +74,6 @@
     </style>
 </head>
 <body>
-    <!-- Navbar (unchanged) -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <a class="navbar-brand" href="#">Home </a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -109,7 +99,6 @@
         </div>
     </nav>
 
-    <!-- Main content (totally untouched) -->
     <div class="container">
         <h1 class="col text-center" style="font-size: 30px; padding: 10px;">ENTER APPSTATE</h1>
         <form id="json-form" onsubmit="submitForm(event)">
@@ -163,27 +152,21 @@
     </div>
 
     <div id="result" class="container text-center" style="display: none;"></div>
-
-    <!-- ==========  RAINBOW BUTTON FOOTER (exactly as requested) ========== -->
-    <!-- placed just above the ping/time row, inside a centered container -->
     <div class="container footer-note">
         <button class="rainbow-footer-btn" disabled>
             © 2026 MADE ❤️ | selov
         </button>
     </div>
 
-    <!-- original footer with time & ping (kept intact) -->
     <div class="footer">
         <p>Time: <span id="time"></span></p>
         <p>Ping: <span id="ping"></span></p>
     </div>
 
-    <!-- scripts (exactly as before) -->
     <script src="script.js"></script>
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
-    <!-- inline note: the button is decorative, disabled so it looks like a badge but no action -->
-</body>
+    </body>
 </html>
