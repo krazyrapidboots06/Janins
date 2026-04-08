@@ -114,7 +114,7 @@ module.exports.run = async function ({ api, event, args }) {
   } catch (err) {
     console.error("Callad Error:", err);
     api.sendMessage(
-      `❌ Failed to send support request.**\n\nError: ${err.message}\n\nPlease try again later.`,
+      `❌ ADD MO MUNA BOT ACC MO SA SUPPORTGC PARA GUMANA.\n\nError: ${err.message}\n\nPlease try again later.`,
       threadID,
       messageID
     );
