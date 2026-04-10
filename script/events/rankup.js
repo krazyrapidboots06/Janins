@@ -4,81 +4,77 @@ const path = require('path');
 
 module.exports.config = {
   name: "rankup",
-  version: "4.0.0",
+  version: "5.0.0",
   role: 0,
-  credits: "VincentSensei",
-  description: "Rankup notification with GIF only",
-  commandCategory: "system",
-  usages: "/rankup [on|off]",
-  cooldowns: 5,
-  aliases: ["rankupv2", "levelup"]
+  credits: "selov",
+  description: "Auto rankup notification with GIF when user levels up",
+  commandCategory: "events",
+  cooldowns: 0,
+  eventType: ["message"]
 };
 
 // Store rankup settings per thread
 if (!global.rankupSettings) global.rankupSettings = {};
 
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID } = event;
-  const command = args[0]?.toLowerCase();
+// XP System (simple)
+const XP_PER_MESSAGE = 1;
+const XP_COOLDOWN = 30000; // 30 seconds
+const DELTA_NEXT = 5;
 
-  // Initialize thread settings
-  if (!global.rankupSettings[threadID]) {
-    global.rankupSettings[threadID] = {
-      enabled: false
-    };
-  }
+// XP to Level calculation
+function expToLevel(exp) {
+  return Math.floor((1 + Math.sqrt(1 + (8 * exp) / DELTA_NEXT)) / 2);
+}
 
-  // Show status
-  if (!command) {
-    const status = global.rankupSettings[threadID].enabled ? "✅ ON" : "❌ OFF";
-    return api.sendMessage(
-      `📊 RANKUP STATUS\n━━━━━━━━━━━━━━━━\nStatus: ${status}\n\n` +
-      `📝 Usage:\n/rankup on - Enable rankup GIF\n` +
-      `/rankup off - Disable rankup GIF`,
-      threadID,
-      messageID
-    );
-  }
+// Initialize user XP data
+if (!global.userXP) global.userXP = {};
 
-  // Turn ON
-  if (command === "on") {
-    global.rankupSettings[threadID].enabled = true;
-    return api.sendMessage(
-      `✅ Rankup GIF ENABLED\n━━━━━━━━━━━━━━━━\n` +
-      `Members will receive rankup GIF when they level up!`,
-      threadID,
-      messageID
-    );
-  }
-
-  // Turn OFF
-  if (command === "off") {
-    global.rankupSettings[threadID].enabled = false;
-    return api.sendMessage(
-      `❌ Rankup GIF DISABLED\n━━━━━━━━━━━━━━━━\n` +
-      `Members will no longer receive rankup GIF.`,
-      threadID,
-      messageID
-    );
-  }
-
-  return api.sendMessage(`❌ Invalid command. Use /rankup on or /rankup off`, threadID, messageID);
-};
-
-// Handle rankup events
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, isGroup, body } = event;
   
   // Only work in groups
   if (!isGroup) return;
   
-  // Check if rankup is enabled for this thread
-  if (!global.rankupSettings[threadID]?.enabled) return;
+  // Initialize thread settings if not exists (enabled by default)
+  if (!global.rankupSettings[threadID]) {
+    global.rankupSettings[threadID] = {
+      enabled: true
+    };
+  }
   
-  // Test trigger: /testrankup [level]
-  if (body && body.toLowerCase().startsWith("/testrankup")) {
-    const args = body.split(" ");
-    const level = args[1] || 5;
+  // Check if rankup is enabled for this thread
+  if (!global.rankupSettings[threadID].enabled) return;
+  
+  // Initialize user XP if not exists
+  if (!global.userXP[senderID]) {
+    global.userXP[senderID] = {
+      xp: 0,
+      level: 1,
+      lastMessage: 0
+    };
+  }
+  
+  const userData = global.userXP[senderID];
+  const now = Date.now();
+  
+  // XP Cooldown check
+  if (now - userData.lastMessage < XP_COOLDOWN) return;
+  
+  // Update last message time
+  userData.lastMessage = now;
+  
+  // Add XP
+  const oldExp = userData.xp;
+  const newExp = oldExp + XP_PER_MESSAGE;
+  userData.xp = newExp;
+  
+  // Calculate levels
+  const oldLevel = expToLevel(oldExp);
+  const newLevel = expToLevel(newExp);
+  
+  // Check if leveled up
+  if (newLevel > oldLevel && newLevel > 1) {
+    userData.level = newLevel;
     
     // Get user info
     let userName = "Member";
@@ -95,7 +91,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       
       const response = await axios({
         method: "get",
-        url: `https://rankup-api-b1rv.vercel.app/api/rankup?uid=${senderID}&name=${encodeURIComponent(userName)}&level=${level}`,
+        url: `https://rankup-api-b1rv.vercel.app/api/rankup?uid=${senderID}&name=${encodeURIComponent(userName)}&level=${newLevel}`,
         responseType: "stream",
         timeout: 15000,
         headers: {
