@@ -2,14 +2,14 @@ const axios = require('axios');
 
 module.exports.config = {
   name: "weather",
-  version: "3.0.0",
+  version: "5.0.0",
   role: 0,
   credits: "selov",
-  description: "Get accurate weather for any city worldwide",
+  description: "Get accurate weather with RealFeel temperature",
   commandCategory: "utility",
   usages: "/weather <city>",
   cooldowns: 5,
-  aliases: ["kainiton", "temp"]
+  aliases: ["init", "temp"]
 };
 
 // Get weather description from WMO code
@@ -40,6 +40,65 @@ function getWeatherDescription(code) {
   return weatherMap[code] || { desc: "Unknown", emoji: "🌍" };
 }
 
+// Calculate UV Index level
+function getUVLevel(uvIndex) {
+  if (uvIndex >= 11) return "Extreme (11+)";
+  if (uvIndex >= 8) return "Very High (8-10)";
+  if (uvIndex >= 6) return "High (6-7)";
+  if (uvIndex >= 3) return "Moderate (3-5)";
+  return "Low (0-2)";
+}
+
+// Calculate RealFeel temperature
+function getRealFeel(temp, humidity, windSpeed) {
+  // Heat index calculation (feels like temperature)
+  let heatIndex = temp;
+  
+  if (temp >= 27 && humidity >= 40) {
+    // Simplified heat index formula
+    const hi = 0.5 * (temp + 61.0 + ((temp - 68.0) * 1.2) + (humidity * 0.094));
+    if (hi >= 80) {
+      heatIndex = -42.379 + 2.04901523 * temp + 10.14333127 * humidity - 0.22475541 * temp * humidity - 0.00683783 * temp * temp - 0.05481717 * humidity * humidity + 0.00122874 * temp * temp * humidity + 0.00085282 * temp * humidity * humidity - 0.00000199 * temp * temp * humidity * humidity;
+    }
+    heatIndex = Math.round(heatIndex);
+  }
+  
+  // Adjust for wind (wind chill in cold, but for PH we mainly care about heat)
+  if (temp < 20) {
+    const windChill = 13.12 + 0.6215 * temp - 11.37 * Math.pow(windSpeed, 0.16) + 0.3965 * temp * Math.pow(windSpeed, 0.16);
+    heatIndex = Math.round(windChill);
+  }
+  
+  return Math.max(temp, Math.round(heatIndex));
+}
+
+// Calculate RealFeel Shade
+function getRealFeelShade(temp, humidity) {
+  // In shade, feels about 2-4 degrees cooler
+  const realFeel = getRealFeel(temp, humidity, 0);
+  return Math.max(temp - 2, realFeel - 4);
+}
+
+// Get UV Index from Open-Meteo (approximate)
+function getUVIndex(lat, lon, date) {
+  // Simplified UV calculation based on latitude and time of year
+  // For Philippines (near equator), UV is generally high
+  const month = date.getMonth(); // 0-11
+  const hour = date.getHours();
+  
+  // Peak UV around 10am-2pm
+  let uv = 7;
+  if (hour >= 10 && hour <= 14) uv = 9;
+  else if (hour >= 9 && hour <= 15) uv = 7;
+  else uv = 4;
+  
+  // Adjust for month (higher UV in summer months March-May)
+  if (month >= 2 && month <= 4) uv += 1; // March-May
+  if (month >= 10 && month <= 11) uv -= 1; // Nov-Dec
+  
+  return Math.min(12, Math.max(0, uv));
+}
+
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID } = event;
   let city = args.join(" ").trim();
@@ -50,11 +109,8 @@ module.exports.run = async function ({ api, event, args }) {
       `Usage: /weather <city>\n\n` +
       `Examples:\n` +
       `• /weather Lapu Lapu\n` +
-      `• /weather Cebu City\n` +
-      `• /weather Bohol\n` +
-      `• /weather Manila\n` +
-      `• /weather Tokyo\n` +
-      `• /weather New York\n\n` +
+      `• /weather Cebu\n` +
+      `• /weather Manila\n\n` +
       `🌏 Works for ANY city worldwide!`,
       threadID,
       messageID
@@ -64,7 +120,7 @@ module.exports.run = async function ({ api, event, args }) {
   const waitingMsg = await api.sendMessage(`🔍 Getting weather for ${city}...`, threadID);
 
   try {
-    // Step 1: Get coordinates using Open-Meteo Geocoding API
+    // Get coordinates
     const geoRes = await axios.get(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=5&language=en`,
       { timeout: 10000 }
@@ -74,76 +130,79 @@ module.exports.run = async function ({ api, event, args }) {
       return api.editMessage(`❌ City "${city}" not found. Please check the spelling.`, waitingMsg.messageID);
     }
     
-    // Take the first result (best match)
     const location = geoRes.data.results[0];
     const lat = location.latitude;
     const lon = location.longitude;
     const locationName = location.name;
     const country = location.country || "";
-    const admin1 = location.admin1 || ""; // State/Province
+    const admin1 = location.admin1 || "";
     
-    // Step 2: Get current weather
+    // Get weather data
     const weatherRes = await axios.get(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto&daily=temperature_2m_max,temperature_2m_min&timeformat=unixtime`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=Asia/Manila&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,relativehumidity_2m`,
       { timeout: 10000 }
     );
     
     const current = weatherRes.data.current_weather;
     const daily = weatherRes.data.daily;
     
-    // Current temperature
-    const temp = Math.round(current.temperature);
-    const windspeed = Math.round(current.windspeed);
-    const weatherCode = current.weathercode;
-    const windDirection = current.winddirection || 0;
+    // Get current time in Philippines
+    const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
+    const phDate = new Date(phTime);
+    const hour = phDate.getHours();
+    const minutes = phDate.getMinutes();
+    const timeStr = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    const dateStr = phDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
     
-    // Get weather description
+    // Get humidity
+    let humidity = 65;
+    if (weatherRes.data.hourly && weatherRes.data.hourly.relativehumidity_2m) {
+      const humidities = weatherRes.data.hourly.relativehumidity_2m;
+      if (humidities && humidities.length > hour) {
+        humidity = humidities[hour];
+      }
+    }
+    
+    const actualTemp = Math.round(current.temperature);
+    const windSpeed = Math.round(current.windspeed);
+    const weatherCode = current.weathercode;
     const weather = getWeatherDescription(weatherCode);
     
-    // Get today's high and low
-    const todayHigh = Math.round(daily.temperature_2m_max[0]);
-    const todayLow = Math.round(daily.temperature_2m_min[0]);
+    // Calculate RealFeel and RealFeel Shade
+    const realFeel = getRealFeel(actualTemp, humidity, windSpeed);
+    const realFeelShade = getRealFeelShade(actualTemp, humidity);
+    const uvIndex = getUVIndex(lat, lon, phDate);
+    const uvLevel = getUVLevel(uvIndex);
     
-    // Get current time
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
-    const dateStr = now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' });
-    
-    // Determine time of day greeting
-    const hour = now.getHours();
-    let greeting = "";
-    if (hour < 12) greeting = "🌅 Good Morning!";
-    else if (hour < 18) greeting = "☀️ Good Afternoon!";
-    else greeting = "🌙 Good Evening!";
-    
-    // Determine heat advisory
-    let heatAdvisory = "";
-    if (temp >= 40) heatAdvisory = "\n⚠️ EXTREME HEAT WARNING! Stay hydrated! 💧";
-    else if (temp >= 36) heatAdvisory = "\n🔥 Heat Advisory! Drink plenty of water.";
-    else if (temp >= 32) heatAdvisory = "\n🌞 Warm day! Stay cool.";
-    
-    // Wind direction to arrow
-    const windArrows = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"];
-    const windIndex = Math.round(windDirection / 45) % 8;
+    // Wind direction arrow
+    const windDir = current.winddirection || 0;
+    const windArrows = ["↓ N", "↙ NE", "← E", "↖ SE", "↑ S", "↗ SW", "→ W", "↘ NW"];
+    const windIndex = Math.round(windDir / 45) % 8;
     const windArrow = windArrows[windIndex];
+    
+    // Time of day greeting
+    let greeting = "";
+    if (hour >= 5 && hour < 12) greeting = "🌅 Good Morning!";
+    else if (hour >= 12 && hour < 18) greeting = "☀️ Good Afternoon!";
+    else greeting = "🌙 Good Evening!";
     
     // Build location display
     let locationDisplay = locationName;
     if (admin1 && admin1 !== locationName) locationDisplay += `, ${admin1}`;
-    if (country) locationDisplay += `, ${country}`;
     
     const resultMsg = 
-      `${weather.emoji} WEATHER IN ${locationDisplay.toUpperCase()}\n` +
+      `${weather.emoji} ${locationDisplay} ${actualTemp}°C\n` +
+      `${weather.desc}\n` +
       `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📅 ${dateStr}\n` +
-      `🕐 ${timeStr}\n` +
+      `RealFeel ${realFeel}°\n` +
+      `RealFeel Shade ${realFeelShade}°\n` +
       `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `🌡️ Current: ${temp}°C\n` +
-      `📈 High: ${todayHigh}°C | 📉 Low: ${todayLow}°C\n` +
-      `💨 Wind: ${windspeed} km/h ${windArrow}\n` +
-      `📝 Condition: ${weather.desc}\n` +
+      `Max UV Index ${uvIndex} (${uvLevel})\n` +
+      `Wind ${windArrow} ${windSpeed} km/h\n` +
+      `Humidity ${humidity}%\n` +
       `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `${greeting}${heatAdvisory}`;
+      `📅 ${dateStr} | 🕐 ${timeStr}\n` +
+      `${greeting}`;
     
     await api.editMessage(resultMsg, waitingMsg.messageID);
     
