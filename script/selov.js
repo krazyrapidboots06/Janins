@@ -4,12 +4,12 @@ const path = require('path');
 
 module.exports.config = {
   name: "selov",
-  version: "2.0.0",
+  version: "3.0.0",
   role: 0,
   credits: "selov",
   description: "AI with Tsundere voice TTS (AI response + audio)",
   commandCategory: "ai",
-  usages: "/selov <question>",
+  usages: "/aiv3 <question>",
   cooldowns: 5,
   aliases: ["tsundere", "tsuntsun", "aitts"]
 };
@@ -23,14 +23,14 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!prompt) {
     return api.sendMessage(
-      `🎙️ TSUNDERE AI TTS\n━━━━━━━━━━━━━━━━\n` +
+      `🎙️ Selov AI TTS\n━━━━━━━━━━━━━━━━\n` +
       `Ask me anything and I'll respond with Tsundere voice!\n\n` +
-      `Usage: /aiv3 <question>\n` +
+      `Usage: /selov <question>\n` +
       `Examples:\n` +
-      `• /aiv3 Hello, how are you?\n` +
-      `• /aiv3 What is your name?\n` +
-      `• /aiv3 Tell me a joke\n` +
-      `• /aiv3 Kumusta kana?`,
+      `• /selov Hello, how are you?\n` +
+      `• /selov What is your name?\n` +
+      `• /selov Tell me a joke\n` +
+      `• /selov Kumusta kana?`,
       threadID,
       messageID
     );
@@ -38,8 +38,6 @@ module.exports.run = async function ({ api, event, args }) {
 
   // Show typing indicator
   api.sendTypingIndicator(threadID, true);
-
-  const processingMsg = await api.sendMessage(`🎤 Tsundere AI is thinking...`, threadID);
 
   try {
     // Step 1: Get AI response from ChatGPT API
@@ -100,10 +98,7 @@ module.exports.run = async function ({ api, event, args }) {
       throw new Error("Downloaded audio file is empty");
     }
     
-    // Delete processing message
-    await api.unsendMessage(processingMsg.messageID);
-    
-    // Send ONLY audio (no text)
+    // Send ONLY audio
     api.sendMessage({
       attachment: fs.createReadStream(audioPath)
     }, threadID, () => {
@@ -129,6 +124,6 @@ module.exports.run = async function ({ api, event, args }) {
       errorMsg = "❌ Server error. Please try again later.";
     }
     
-    await api.editMessage(errorMsg, processingMsg.messageID);
+    api.sendMessage(errorMsg, threadID, messageID);
   }
 };
