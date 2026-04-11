@@ -65,7 +65,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
     
     // Step 2: Convert AI response to Tsundere voice
-    const ttsUrl = `https://rest-api-ruhv.onrender.com/api/api/ai/tsundere?text=${encodeURIComponent(aiText)}`;
+    const ttsUrl = `https://restapijay.onrender.com/api/api/ai/tsundere?text=${encodeURIComponent(aiText)}`;
     
     const ttsResponse = await axios.get(ttsUrl, { timeout: 30000 });
     
