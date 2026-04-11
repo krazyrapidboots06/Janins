@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 module.exports.config = {
-  name: "selov",
+  name: "aiv3",
   version: "3.0.0",
   role: 0,
   credits: "selov",
