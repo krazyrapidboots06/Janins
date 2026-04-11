@@ -41,7 +41,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   try {
     // Step 1: Get AI response from ChatGPT API
-    const aiUrl = `https://rest-api-ruhv.onrender.com/api/chatgptfree?prompt=${encodeURIComponent(prompt)}`;
+    const aiUrl = `https://restapijay.onrender.com/api/chatgptfree?prompt=${encodeURIComponent(prompt)}`;
     
     const aiResponse = await axios.get(aiUrl, { timeout: 30000 });
     
