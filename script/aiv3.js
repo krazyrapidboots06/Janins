@@ -4,36 +4,29 @@ const path = require('path');
 
 module.exports.config = {
   name: "aiv3",
-  version: "3.0.0",
+  version: "5.0.0",
   role: 0,
   credits: "selov",
   description: "AI with Tsundere voice TTS (AI response + audio)",
   commandCategory: "ai",
   usages: "/aiv3 <question>",
   cooldowns: 5,
-  aliases: ["tsundere", "tsuntsun", "aitts"]
+  aliases: ["selov", "voiceai", "aitts"]
 };
 
 // Store conversation memory per user
 if (!global.aiv3Memory) global.aiv3Memory = {};
+
+// API endpoints
+const CHAT_API = "https://restapijay.onrender.com/api/chatgptfree";
+const TTS_API = "https://restapijay.onrender.com/api/api/ai/tsundere";
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
   let prompt = args.join(" ").trim();
 
   if (!prompt) {
-    return api.sendMessage(
-      `🎙️ Selov AI TTS\n━━━━━━━━━━━━━━━━\n` +
-      `Ask me anything and I'll respond with Tsundere voice!\n\n` +
-      `Usage: /selov <question>\n` +
-      `Examples:\n` +
-      `• /selov Hello, how are you?\n` +
-      `• /selov What is your name?\n` +
-      `• /selov Tell me a joke\n` +
-      `• /selov Kumusta kana?`,
-      threadID,
-      messageID
-    );
+    return; // Silent fail
   }
 
   // Show typing indicator
@@ -41,15 +34,15 @@ module.exports.run = async function ({ api, event, args }) {
 
   try {
     // Step 1: Get AI response from ChatGPT API
-    const aiUrl = `https://restapijay.onrender.com/api/chatgptfree?prompt=${encodeURIComponent(prompt)}`;
+    const aiUrl = `${CHAT_API}?prompt=${encodeURIComponent(prompt)}`;
     
     const aiResponse = await axios.get(aiUrl, { timeout: 30000 });
     
     let aiText = aiResponse.data?.result?.answer || 
                  aiResponse.data?.answer || 
-                 "Sorry, I couldn't process that request. Baka!";
+                 "Sorry, I couldn't process that request.";
     
-    // Store in memory (optional)
+    // Store in memory
     if (!global.aiv3Memory[senderID]) {
       global.aiv3Memory[senderID] = [];
     }
@@ -65,13 +58,16 @@ module.exports.run = async function ({ api, event, args }) {
     }
     
     // Step 2: Convert AI response to Tsundere voice
-    const ttsUrl = `https://restapijay.onrender.com/api/api/ai/tsundere?text=${encodeURIComponent(aiText)}`;
+    const ttsUrl = `${TTS_API}?text=${encodeURIComponent(aiText)}`;
     
     const ttsResponse = await axios.get(ttsUrl, { timeout: 30000 });
     
-    const audioUrl = ttsResponse.data?.result?.audio || ttsResponse.data?.audio;
+    // Get audio URL from response
+    const audioUrl = ttsResponse.data?.result?.audio || 
+                     ttsResponse.data?.audio;
     
     if (!audioUrl) {
+      console.log("TTS Response:", JSON.stringify(ttsResponse.data, null, 2));
       throw new Error("No audio URL received");
     }
     
@@ -79,7 +75,9 @@ module.exports.run = async function ({ api, event, args }) {
     const cacheDir = path.join(__dirname, "cache", "aiv3");
     await fs.ensureDir(cacheDir);
     
-    const audioPath = path.join(cacheDir, `aiv3_${Date.now()}.mp3`);
+    // Determine file extension from URL or default to mp3
+    const fileExt = audioUrl.split('.').pop() || 'mp3';
+    const audioPath = path.join(cacheDir, `aiv3_${Date.now()}.${fileExt}`);
     
     // Download audio
     const audioResponse = await axios.get(audioUrl, {
@@ -113,17 +111,6 @@ module.exports.run = async function ({ api, event, args }) {
     
   } catch (err) {
     console.error("AIv3 Error:", err);
-    
-    let errorMsg = "❌ Failed to generate Tsundere response. Please try again.";
-    
-    if (err.code === 'ECONNABORTED') {
-      errorMsg = "❌ Request timed out. Please try again.";
-    } else if (err.response?.status === 404) {
-      errorMsg = "❌ API endpoint not found.";
-    } else if (err.response?.status === 500) {
-      errorMsg = "❌ Server error. Please try again later.";
-    }
-    
-    api.sendMessage(errorMsg, threadID, messageID);
+    // Silent fail - no error message
   }
 };
